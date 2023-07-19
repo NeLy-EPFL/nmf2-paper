@@ -2,3 +2,4 @@ networkx
 torch
 torch_geometric
 seaborn
+imageio
