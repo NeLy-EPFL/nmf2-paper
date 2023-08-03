@@ -2,4 +2,6 @@ networkx
 torch
 torch_geometric
 seaborn
-imageio
+rasterio
+gymnasium
+stable-baselines3[extra]
