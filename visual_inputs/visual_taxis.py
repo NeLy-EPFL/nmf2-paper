@@ -286,6 +286,14 @@ class NMFVisualTaxis(NMFCPG):
             self.coms[i, :] = np.argwhere(mask).mean(axis=0)
 
         self._last_dist_from_obj = None
+        self._last_observation = None
+
+    def reset(self):
+        raw_obs, info = super().reset()
+        obs = self._get_visual_features(raw_obs)
+        self._last_observation = None
+        self._last_dist_from_obj = None
+        return obs, info
 
     def step(self, amplitude):
         for i in range(self.num_sub_steps):
@@ -296,21 +304,30 @@ class NMFVisualTaxis(NMFCPG):
             fly_pos=raw_obs["fly"][0, :], obj_pos=self.arena.ball_pos
         )
         truncated = raw_trunc or self.curr_time >= self.max_time
+        print(reward)
         return obs, reward, raw_term, truncated, raw_info
 
-    def _get_visual_features(self):
-        raw_obs = super().get_observation()
+    def _get_visual_features(self, raw_obs=None):
+        if raw_obs is None:
+            raw_obs = super().get_observation()
         features = np.full((2, 3), np.nan)  # ({L, R}, {y_center, x_center, area})
         for i, ommatidia_readings in enumerate(raw_obs["vision"]):
             is_obj = ommatidia_readings.max(axis=1) < self.obj_threshold
             is_obj_coords = self.coms[is_obj]
             if is_obj_coords.shape[0] > 0:
                 features[i, :2] = is_obj_coords.mean(axis=0)
+            else: # Deal with cases where the object is seen by one eye only
+                if self._last_observation is not None:
+                    features[i, :2] = self._last_observation[2*i:2*i+2]
+                else:
+                    features[i, :2] = 0
             features[i, 2] = is_obj_coords.shape[0]
         features[:, 0] /= config.raw_img_height_px  # normalize y_center
         features[:, 1] /= config.raw_img_width_px  # normalize x_center
         # features[:, :2] = features[:, :2] * 2 - 1  # center around 0
         features[:, 2] /= config.num_ommatidia_per_eye  # normalize area
+
+        self._last_observation = features.flatten()
         return features.flatten()
 
     def _calc_delta_dist(self, fly_pos, obj_pos):
@@ -321,3 +338,4 @@ class NMFVisualTaxis(NMFCPG):
             delta_dist = 0
         self._last_dist_from_obj = dist_from_obj
         return delta_dist
+
