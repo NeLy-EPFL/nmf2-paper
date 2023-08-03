@@ -30,7 +30,7 @@ sim = NMFVisualTaxis(
 log_dir = Path("../logs")
 log_dir.mkdir(parents=True, exist_ok=True)
 
-callback = SaveIntermediateModelsCallback(check_freq=20_000, log_dir=log_dir)
+callback = SaveIntermediateModelsCallback(check_freq=10_000, log_dir=log_dir)
 
 mynmf = Monitor(sim, filename=str(log_dir / f"train_log_MLP"))
 
@@ -42,6 +42,6 @@ nmf_model.set_logger(new_logger)
 
 print(nmf_model.policy)
 
-nmf_model.learn(total_timesteps=400_000, progress_bar=True, callback=callback)
+nmf_model.learn(total_timesteps=40_000, progress_bar=True, callback=callback)
 nmf_model.save(str(log_dir / f"saved_model_MLPlinearlr"))
 mynmf.close()
