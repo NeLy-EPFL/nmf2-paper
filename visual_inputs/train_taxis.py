@@ -30,13 +30,13 @@ sim = NMFVisualTaxis(
 log_dir = Path("../logs")
 log_dir.mkdir(parents=True, exist_ok=True)
 
-callback = SaveIntermediateModelsCallback(check_freq=10_000, log_dir=log_dir)
+callback = SaveIntermediateModelsCallback(check_freq=5_000, log_dir=log_dir)
 
 mynmf = Monitor(sim, filename=str(log_dir / f"train_log_MLP"))
 
 new_logger = configure(str(log_dir), ["stdout", "csv", "tensorboard"])
 
-nmf_model = PPO(MlpPolicy, mynmf, verbose=True, learning_rate=linear_schedule(0.003))
+nmf_model = PPO(MlpPolicy, mynmf, verbose=True, learning_rate=linear_schedule(0.003), n_steps=1024)
 
 nmf_model.set_logger(new_logger)
 

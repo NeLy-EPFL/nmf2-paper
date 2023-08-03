@@ -207,22 +207,20 @@ class MovingObjArena(BaseArena):
             if new_move_mode == True:
                 self.move_mode = np.random.choice(
                     ["straightHeading", "s_shape"]
-                )  # , "random"])
+                ) 
         else:
             self.move_mode = new_move_mode
 
         self.ball_pos = self.init_ball_pos
-        if self.move_mode == "straightHeading":
-            # Draw new random direction
-            self.direction = 0.5 * np.pi * (np.random.rand() - 0.5)
 
+        if self.move_mode == "straightHeading":
+            self.direction = 0.5 * np.pi * (np.random.rand() - 0.5)
         elif self.move_mode == "circling":
-            # Draw new rotation direction and center
             self.rotation_direction = np.random.choice([-1, 1])
             self.rotation_center = (
                 np.random.randint(0, 4),
                 self.rotation_direction * np.random.randint(6, 12),
-            )
+            )  # (10*np.random.rand(),10*np.random.rand())
             self.radius = np.linalg.norm(
                 np.array(self.ball_pos[0:2]) - np.array(self.rotation_center)
             )
@@ -230,21 +228,17 @@ class MovingObjArena(BaseArena):
                 (self.ball_pos[1] - self.rotation_center[1]) / self.radius
             )
 
-        elif self.move_mode == "s_shape":
-            self.radius = 10
-            self.rotation_center = (self.ball_pos[0] + self.radius, 0)
-            self.rotation_direction = np.random.choice([-1, 1])
-            self.theta = np.pi
-
         if isinstance(new_move_speed, bool):
             if new_move_speed == True:
-                base_speed = 0.003
-                if self.move_mode == "straightHeading":
+                base_speed = 25
+                if self.move_mode == "straightHeading" or self.move_mode == "s_shape":
                     self.move_speed = base_speed
-                elif self.move_mode == "circling" or self.move_mode == "s_shape":
+                elif self.move_mode == "circling":
                     self.move_speed = base_speed / self.radius
         else:
             self.move_speed = new_move_speed
+
+        self.curr_time = 0
 
 
 class NMFVisualTaxis(NMFCPG):
@@ -295,6 +289,7 @@ class NMFVisualTaxis(NMFCPG):
         self._last_observation = None
         self._last_dist_from_obj = None
         self._last_cosangle = None
+        self.arena.reset(new_spawn_pos=True, new_move_mode=True)
         return obs, info
 
     def step(self, amplitude):
