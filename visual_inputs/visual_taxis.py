@@ -287,12 +287,14 @@ class NMFVisualTaxis(NMFCPG):
 
         self._last_dist_from_obj = None
         self._last_observation = None
+        self._last_cosangle = None
 
     def reset(self):
         raw_obs, info = super().reset()
         obs = self._get_visual_features(raw_obs)
         self._last_observation = None
         self._last_dist_from_obj = None
+        self._last_cosangle = None
         return obs, info
 
     def step(self, amplitude):
@@ -300,11 +302,19 @@ class NMFVisualTaxis(NMFCPG):
             raw_obs, _, raw_term, raw_trunc, raw_info = super().step(amplitude)
             super().render()
         obs = self._get_visual_features()
-        reward = self._calc_delta_dist(
+
+        # Compute reward for reducing distance to object
+        dist_reward = self._calc_delta_dist(
             fly_pos=raw_obs["fly"][0, :], obj_pos=self.arena.ball_pos
         )
+        # Compute reward for movmeent direction towards the object
+        orient_reward, terminated = self._compute_orientation_reward(
+            fly_orient=raw_obs["fly"][2,:],
+            fly_pos = raw_obs["fly"][0,:], obj_pos=self.arena.ball_pos
+        )
+        reward = dist_reward + orient_reward
+
         truncated = raw_trunc or self.curr_time >= self.max_time
-        print(reward)
         return obs, reward, raw_term, truncated, raw_info
 
     def _get_visual_features(self, raw_obs=None):
@@ -338,4 +348,31 @@ class NMFVisualTaxis(NMFCPG):
             delta_dist = 0
         self._last_dist_from_obj = dist_from_obj
         return delta_dist
+
+    def _compute_orientation_reward(self, fly_orient, fly_pos, obj_pos):
+        terminated = False
+        pitch_threshold = np.pi/2
+
+        # Termination with penalty if the fly has tipped over
+        if abs(fly_orient[2]) > pitch_threshold: #### which is pitch???
+            reward = -200
+            terminated = True
+
+        dist_from_obj = np.linalg.norm(fly_pos - obj_pos)
+        vec_fly = np.array([np.cos(fly_orient[0]+np.pi/2),np.sin(fly_orient[0]+np.pi/2)])
+        vec_obj = np.array((1/dist_from_obj)*(obj_pos[:2]-fly_pos[:2]))
+        cosangle = np.dot(vec_obj, vec_fly)
+
+        # Termination if object ot of field of view
+        if cosangle < (-1/np.sqrt(2)):
+            terminated = True
+            reward = -1
+        elif self._last_cosangle is not None:
+            reward = 10*(cosangle-self._last_cosangle)
+        else:
+            reward = 0
+        self._last_cosangle = cosangle
+
+        return reward, terminated
+        
 
