@@ -27,7 +27,7 @@ sim = NMFVisualTaxis(
     obj_threshold=50,
 )
 
-log_dir = Path("../logs")
+log_dir = Path("../logs_orient")
 log_dir.mkdir(parents=True, exist_ok=True)
 
 callback = SaveIntermediateModelsCallback(check_freq=5_000, log_dir=log_dir)

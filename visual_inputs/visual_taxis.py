@@ -307,7 +307,7 @@ class NMFVisualTaxis(NMFCPG):
             fly_orient=raw_obs["fly"][2,:],
             fly_pos = raw_obs["fly"][0,:], obj_pos=self.arena.ball_pos
         )
-        reward = dist_reward + orient_reward
+        reward = orient_reward
 
         truncated = raw_trunc or self.curr_time >= self.max_time
         terminated = raw_term or termin
