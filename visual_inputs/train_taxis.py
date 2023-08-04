@@ -16,6 +16,8 @@ from flygym.envs.nmf_mujoco import MuJoCoParameters
 
 from util import linear_schedule, SaveIntermediateModelsCallback
 
+CONTINUING = True
+
 arena = MovingObjArena(obj_spawn_pos=(5, 3, 0), move_mode="s_shape")
 # sim_params = MuJoCoParameters(render_playspeed=0.2, render_camera="birdseye_cam")
 sim_params = MuJoCoParameters(render_playspeed=0.2)
@@ -27,7 +29,7 @@ sim = NMFVisualTaxis(
     obj_threshold=50,
 )
 
-log_dir = Path("../logs_orient")
+log_dir = Path("../logs_orient_")
 log_dir.mkdir(parents=True, exist_ok=True)
 
 callback = SaveIntermediateModelsCallback(check_freq=5_000, log_dir=log_dir)
@@ -36,7 +38,11 @@ mynmf = Monitor(sim, filename=str(log_dir / f"train_log_MLP"))
 
 new_logger = configure(str(log_dir), ["stdout", "csv", "tensorboard"])
 
-nmf_model = PPO(MlpPolicy, mynmf, verbose=True, learning_rate=linear_schedule(0.003), n_steps=1024)
+if CONTINUING:
+    nmf_model = PPO.load("../logs_orient_/model10000")
+    nmf_model.set_env(mynmf)
+else:
+    nmf_model = PPO(MlpPolicy, mynmf, verbose=True, learning_rate=linear_schedule(0.003), n_steps=1024)
 
 nmf_model.set_logger(new_logger)
 
