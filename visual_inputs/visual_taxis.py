@@ -303,14 +303,15 @@ class NMFVisualTaxis(NMFCPG):
             fly_pos=raw_obs["fly"][0, :], obj_pos=self.arena.ball_pos
         )
         # Compute reward for movmeent direction towards the object
-        orient_reward, terminated = self._compute_orientation_reward(
+        orient_reward, termin = self._compute_orientation_reward(
             fly_orient=raw_obs["fly"][2,:],
             fly_pos = raw_obs["fly"][0,:], obj_pos=self.arena.ball_pos
         )
         reward = dist_reward + orient_reward
 
         truncated = raw_trunc or self.curr_time >= self.max_time
-        return obs, reward, raw_term, truncated, raw_info
+        terminated = raw_term or termin
+        return obs, reward, terminated, truncated, raw_info
 
     def _get_visual_features(self, raw_obs=None):
         if raw_obs is None:
