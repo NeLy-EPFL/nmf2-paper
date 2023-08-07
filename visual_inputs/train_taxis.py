@@ -39,7 +39,7 @@ mynmf = Monitor(sim, filename=str(log_dir / f"train_log_MLP"))
 new_logger = configure(str(log_dir), ["stdout", "csv", "tensorboard"])
 
 if CONTINUING:
-    nmf_model = PPO.load("../logs_orient_/model10000")
+    nmf_model = PPO.load("../logs_orient_/model40000_sec")
     nmf_model.set_env(mynmf)
 else:
     nmf_model = PPO(MlpPolicy, mynmf, verbose=True, learning_rate=linear_schedule(0.003), n_steps=1024)
@@ -49,5 +49,5 @@ nmf_model.set_logger(new_logger)
 print(nmf_model.policy)
 
 nmf_model.learn(total_timesteps=40_000, progress_bar=True, callback=callback)
-nmf_model.save(str(log_dir / f"saved_model_MLPlinearlr"))
+nmf_model.save(str(log_dir / f"saved_model_MLPlinearlr_continue_"))
 mynmf.close()
