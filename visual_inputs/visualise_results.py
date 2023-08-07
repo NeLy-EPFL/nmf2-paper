@@ -28,8 +28,8 @@ sim = NMFVisualTaxis(
     obj_threshold=50,
 )
 
-dr = f'../../logs_orient_'
-model_name = "saved_model_MLPlinearlr_continue"
+dr = f'../logs_'
+model_name = "model15000"
 out_dir = Path(dr+f"/eval_{model_name}")
 out_dir.mkdir(parents=True, exist_ok=True)
 
