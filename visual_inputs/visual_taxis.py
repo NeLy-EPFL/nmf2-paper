@@ -43,7 +43,7 @@ class MovingObjArena(BaseArena):
         self,
         size: Tuple[float, float] = (200, 200),
         friction: Tuple[float, float, float] = (1, 0.005, 0.0001),
-        obj_radius: float = 2,
+        obj_radius: float = 1,
         obj_spawn_pos: Tuple[float, float, float] = (0, 2, 0),
         move_mode: str = "random",
         move_speed: float = 25,
@@ -121,15 +121,6 @@ class MovingObjArena(BaseArena):
             )
         elif move_mode != "random":
             raise NotImplementedError
-
-        if move_speed == -1:
-            base_speed = 0.003
-            if self.move_mode == "straightHeading":
-                self.move_speed = base_speed
-            elif self.move_mode == "circling" or self.move_mode == "s_shape":
-                self.move_speed = base_speed / self.radius
-        else:
-            self.move_speed = move_speed
 
         self.root_element.worldbody.add(
             "camera",
@@ -282,6 +273,7 @@ class NMFVisualTaxis(NMFCPG):
         self._last_dist_from_obj = None
         self._last_observation = None
         self._last_cosangle = None
+        self._see_obj = 2
 
     def reset(self):
         raw_obs, info = super().reset()
@@ -302,18 +294,19 @@ class NMFVisualTaxis(NMFCPG):
         dist_reward = self._calc_delta_dist(
             fly_pos=raw_obs["fly"][0, :], obj_pos=self.arena.ball_pos
         )
-        # Compute reward for movmeent direction towards the object
+        # Compute reward for movement direction towards the object
         orient_reward, termin = self._compute_orientation_reward(
             fly_orient=raw_obs["fly"][2,:],
             fly_pos = raw_obs["fly"][0,:], obj_pos=self.arena.ball_pos
         )
-        reward = orient_reward
+        reward = orient_reward + 0.1*dist_reward
 
         truncated = raw_trunc or self.curr_time >= self.max_time
-        terminated = raw_term or termin
+        terminated = raw_term or termin or not(self._see_obj)
         return obs, reward, terminated, truncated, raw_info
 
     def _get_visual_features(self, raw_obs=None):
+        self._see_obj = 2
         if raw_obs is None:
             raw_obs = super().get_observation()
         features = np.full((2, 3), np.nan)  # ({L, R}, {y_center, x_center, area})
@@ -323,6 +316,7 @@ class NMFVisualTaxis(NMFCPG):
             if is_obj_coords.shape[0] > 0:
                 features[i, :2] = is_obj_coords.mean(axis=0)
             else: # Deal with cases where the object is seen by one eye only
+                self._see_obj -= 1
                 if self._last_observation is not None:
                     features[i, :2] = self._last_observation[2*i:2*i+2]
                 else:
@@ -359,7 +353,7 @@ class NMFVisualTaxis(NMFCPG):
         vec_obj = np.array((1/dist_from_obj)*(obj_pos[:2]-fly_pos[:2]))
         cosangle = np.dot(vec_obj, vec_fly)
 
-        # Termination if object ot of field of view
+        # Termination if object out of field of view
         if cosangle < (-1/np.sqrt(2)):
             terminated = True
             reward = -1

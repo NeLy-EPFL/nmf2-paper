@@ -29,7 +29,7 @@ sim = NMFVisualTaxis(
     obj_threshold=50,
 )
 
-log_dir = Path("../logs_orient_")
+log_dir = Path("../logs_")
 log_dir.mkdir(parents=True, exist_ok=True)
 
 callback = SaveIntermediateModelsCallback(check_freq=5_000, log_dir=log_dir)
@@ -39,7 +39,7 @@ mynmf = Monitor(sim, filename=str(log_dir / f"train_log_MLP"))
 new_logger = configure(str(log_dir), ["stdout", "csv", "tensorboard"])
 
 if CONTINUING:
-    nmf_model = PPO.load("../logs_orient_/model40000_sec")
+    nmf_model = PPO.load("../logs_orient_/saved_model_MLPlinearlr_continue")
     nmf_model.set_env(mynmf)
 else:
     nmf_model = PPO(MlpPolicy, mynmf, verbose=True, learning_rate=linear_schedule(0.003), n_steps=1024)
