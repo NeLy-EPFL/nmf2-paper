@@ -16,7 +16,7 @@ from flygym.envs.nmf_mujoco import MuJoCoParameters
 
 from util import linear_schedule, SaveIntermediateModelsCallback
 
-CONTINUING = True
+CONTINUING = False
 
 arena = MovingObjArena(obj_spawn_pos=(5, 3, 0), move_mode="s_shape")
 # sim_params = MuJoCoParameters(render_playspeed=0.2, render_camera="birdseye_cam")
@@ -29,7 +29,7 @@ sim = NMFVisualTaxis(
     obj_threshold=50,
 )
 
-log_dir = Path("../logs_")
+log_dir = Path("../logs_new")
 log_dir.mkdir(parents=True, exist_ok=True)
 
 callback = SaveIntermediateModelsCallback(check_freq=5_000, log_dir=log_dir)
@@ -42,12 +42,13 @@ if CONTINUING:
     nmf_model = PPO.load("../logs_orient_/saved_model_MLPlinearlr_continue")
     nmf_model.set_env(mynmf)
 else:
+    policy_kwargs = dict(net_arch=dict(pi=[16, 16], vf=[16, 16]))
     nmf_model = PPO(MlpPolicy, mynmf, verbose=True, learning_rate=linear_schedule(0.003), n_steps=1024)
 
 nmf_model.set_logger(new_logger)
 
 print(nmf_model.policy)
 
-nmf_model.learn(total_timesteps=40_000, progress_bar=True, callback=callback)
-nmf_model.save(str(log_dir / f"saved_model_MLPlinearlr_continue_"))
+nmf_model.learn(total_timesteps=80_000, progress_bar=True, callback=callback)
+nmf_model.save(str(log_dir / f"saved_model_MLPlinearlr_16"))
 mynmf.close()

@@ -299,7 +299,7 @@ class NMFVisualTaxis(NMFCPG):
             fly_orient=raw_obs["fly"][2,:],
             fly_pos = raw_obs["fly"][0,:], obj_pos=self.arena.ball_pos
         )
-        reward = orient_reward + 0.1*dist_reward
+        reward = orient_reward + 0.05*dist_reward
 
         truncated = raw_trunc or self.curr_time >= self.max_time
         terminated = raw_term or termin or not(self._see_obj)
@@ -345,7 +345,7 @@ class NMFVisualTaxis(NMFCPG):
 
         # Termination with penalty if the fly has tipped over
         if abs(fly_orient[2]) > pitch_threshold: #### which is pitch???
-            reward = -200
+            #reward = -200
             terminated = True
 
         dist_from_obj = np.linalg.norm(fly_pos - obj_pos)
