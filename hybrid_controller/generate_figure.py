@@ -11,7 +11,9 @@ all_folders = base_path.glob("*pts*")
 # Generate a scatter plot for each condition with the last fly z position¨
 # Chnage the color if the adhesion is on
 # Save the figure in the base directory
-save_path = Path("panel.png")
+kp_selector = "_kp40.0"
+
+save_path = Path(f"panel{kp_selector}.png")
 
 controller = ["CPG", "Decentralized"]
 terrain = ["flat", "blocks", "gapped", "mixed"]
@@ -27,7 +29,7 @@ all_colors = np.tile(["r", "b"], n_conditions)
 
 for controller, terrain in conditions:
     for adh in adhesion:
-        path = base_path / f"{terrain}_{controller}pts_adhesion{adh}"
+        path = base_path / f"{terrain}_{controller}pts_adhesion{adh}{kp_selector}"
         if not path.is_dir():
             print(f"Path {path} does not exist")
             continue

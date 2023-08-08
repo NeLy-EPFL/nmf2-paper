@@ -39,6 +39,7 @@ from flygym.arena.mujoco_arena import (
     MixedTerrain,
 )
 
+import yaml
 
 ########### CONSTANTS ############
 ENVIRONEMENT_SEED = 0
@@ -58,6 +59,7 @@ COUPLING_STRENGTH = 10.0
 AMP_RATES = 20.0
 TARGET_AMPLITUDE = 1.0
 
+ACTUATOR_KP = 40.0
 
 ########### FUNCTIONS ############
 ####### Initialization #########
@@ -112,7 +114,7 @@ def get_CPG_parameters(freq=7):
 
 def run_CPG(nmf, seed, data_block, match_leg_to_joints, joint_ids, video_path=None):
     nmf.reset()
-    adhesion = nmf.adhesion
+    adhesion = nmf.sim_params.enable_adhesion
 
     num_steps = int(RUN_TIME / nmf.timestep) + N_STABILIZATION_STEPS
     interp_step_duration = data_block.shape[1]
@@ -200,9 +202,9 @@ def run_Decentralized(
     nmf, seed, data_block, leg_swings_starts, leg_stance_starts, video_path=None
 ):
     nmf.reset()
-    adhesion = nmf.adhesion
+    adhesion = nmf.sim_params.enable_adhesion
     if adhesion:
-        nmf.adhesion_OFF_dur = ADHESION_OFF_DUR_DECENTRALIZED
+        nmf.adhesion_off_duration_steps = ADHESION_OFF_DUR_DECENTRALIZED
 
     # Get data block
     num_steps = int(RUN_TIME / nmf.timestep) + N_STABILIZATION_STEPS
@@ -379,14 +381,15 @@ def main(args):
     internal_seeds = internal_seeds[: args.n_exp]
 
     # Initialize simulation but with flat terrain at the beginning to define the swing and stance starts
+    # Set high actuator kp to be able to overcome obstacles
     sim_params = MuJoCoParameters(
-        timestep=1e-4, render_mode="saved", render_playspeed=0.1
+        timestep=1e-4, render_mode="saved", render_playspeed=0.1, enable_adhesion=adhesion,
+        actuator_kp=ACTUATOR_KP
     )
     nmf = NeuroMechFlyMuJoCo(
         sim_params=sim_params,
         init_pose=stretched_pose,
         actuated_joints=all_leg_dofs,
-        adhesion=adhesion,
     )
 
     # Load and process data block only once as this wont change
@@ -400,19 +403,18 @@ def main(args):
     )
 
     # Create folder to save data points
-    CPGpts_path = Path(f"Data_points/{arena_type}_CPGpts_adhesion{adhesion}")
+    CPGpts_path = Path(f"Data_points/{arena_type}_CPGpts_adhesion{adhesion}_kp{ACTUATOR_KP}")
     CPGpts_path.mkdir(parents=True, exist_ok=True)
     decentralizedpts_path = Path(
-        f"Data_points/{arena_type}_Decentralizedpts_adhesion{adhesion}"
+        f"Data_points/{arena_type}_Decentralizedpts_adhesion{adhesion}_kp{ACTUATOR_KP}"
     )
     decentralizedpts_path.mkdir(parents=True, exist_ok=True)
 
+    sim_params.draw_adhesion = adhesion
     nmf_params = {
         "sim_params": sim_params,
         "init_pose": stretched_pose,
         "actuated_joints": all_leg_dofs,
-        "adhesion": adhesion,
-        "draw_adhesion": adhesion,
     }
     start_exps = time.time()
     print("Starting experiments")
