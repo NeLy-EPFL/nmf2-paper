@@ -45,7 +45,7 @@ for pkl_file in pkl_files:
     # Load the data points
     obs_list = np.load(pkl_file, allow_pickle=True)
     # Get the x,y,z positions
-    xyz_positions = np.array([obs["fly"][0] for obs in obs_list[n_stabilization_steps+1000:]])
+    xyz_positions = np.array([obs["fly"][0] for obs in obs_list[n_stabilization_steps:]])
     xyz_positions_list.append(xyz_positions)
     # Rotate the x,y,z positions if the gravtiy is changed i > gravity_switching_step-n_stabilization_steps
     xyz_positions_rotated = np.array(

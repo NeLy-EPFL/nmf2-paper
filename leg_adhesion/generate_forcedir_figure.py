@@ -31,7 +31,7 @@ for pkl_file in pkl_files:
     # Load the data points
     obs_list = np.load(pkl_file, allow_pickle=True)
     # Get the x,y,z positions
-    xyz_contacts = np.array([obs["contact_forces"] for obs in obs_list[:gravity_switching_step]])
+    xyz_contacts = np.array([obs["contact_forces"] for obs in obs_list[gravity_switching_step:]])
     contact_forces.append(xyz_contacts)
 
 # pad the shorter contact forces with nan
