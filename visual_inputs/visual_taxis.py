@@ -281,7 +281,7 @@ class NMFVisualTaxis(NMFCPG):
         self._last_observation = None
         self._last_dist_from_obj = None
         self._last_cosangle = None
-        self.arena.reset(new_spawn_pos=True, new_move_mode=True)
+        self.arena.reset(new_spawn_pos=True, new_move_mode="straightHeading")
         return obs, info
 
     def step(self, amplitude):
