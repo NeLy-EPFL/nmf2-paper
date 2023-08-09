@@ -41,11 +41,12 @@ class ObstacleOdorArena(OdorArena):
     """
     def __init__(
         self,
+        size: Tuple[float, float] = (100, 100),
         walls_dist: Tuple[float,float] = (12,5),
         walls_dims: Tuple[float,float,float] = (0.5,6,2),
         **kwargs
     ):
-        super().__init__(odor_source = np.array([[25, 0, 0]]), peak_intensity=np.array([[1000]]),**kwargs)
+        super().__init__(odor_source = np.array([[25, 0, 0]]), peak_intensity=np.array([[1000]]), **kwargs)
     
         # Add obstacles
         obstacle = self.root_element.asset.add(
@@ -68,6 +69,15 @@ class ObstacleOdorArena(OdorArena):
                 material=obstacle,
                 friction=self.friction,
             )
+        
+        self.root_element.worldbody.add(
+            "camera",
+            name="arena_camera_1",
+            mode="fixed",
+            pos=(-10, 0, 20),
+            euler=(0, -np.pi / 4, -np.pi / 2),
+            fovy=60,
+        )
 
     
     def get_walls_distance(self, position: np.ndarray):
