@@ -25,7 +25,7 @@ CONTROLLER_SEED = 42
 N_STABILIZATION_STEPS = 2000
 GRAVITY_SWITCHING_STEP = 4000
 
-LEGS = ["RF", "RM", "RH", "LF", "LM", "LH"]
+LEGS = ["RF", "RM", "RH", "LF", "LM", "LH"] 
 N_OSCILLATORS = len(LEGS)
 
 COUPLING_STRENGTH = 10.0
@@ -176,8 +176,8 @@ def run_CPG(nmf, data_block, match_leg_to_joints, joint_ids, slope, axis, base_p
 
 
 ########### MAIN ############
-def main(args):
-    slopes_in_degrees = [0, 10, 20, 30, 45, 60, 70, 80, 90][::-1]
+if __name__ == "__main__":
+    slopes_in_degrees = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90][::-1]
     """base_gravity = np.array([0, 0, -9810])
     base_gravity_norm = np.linalg.norm(base_gravity)
     # project the base gravity vector on the slope (compute corresponding x and z components)
@@ -229,85 +229,15 @@ def main(args):
 
     start_exps = time.time()
     print("Starting front slope experiments")
-    # Parallelize the experiment
-    if args.parallel:
-        task_configuration = [
-            (
-                nmf,
-                data_block,
-                match_leg_to_joints,
-                joint_ids,
-                slope,
-                "y",
-                base_path,
-            )
-            for slope in slopes_in_degrees
-        ]
-        with multiprocessing.Pool(4) as pool:
-            pool.starmap(run_CPG, task_configuration)
-        pool.join()
-        pool.close()
-    else:
-        for slope in slopes_in_degrees:
-            run_CPG(
-                nmf,
-                data_block,
-                match_leg_to_joints,
-                joint_ids,
-                slope,
-                "y",
-                base_path,
-            )
+    for slope in slopes_in_degrees:
+        run_CPG(
+            nmf,
+            data_block,
+            match_leg_to_joints,
+            joint_ids,
+            slope,
+            "y",
+            base_path,
+        )
 
     print(f"{len(slopes_in_degrees)} experiments took {time.time()-start_exps:.2f} seconds")
-
-    # Create folder to save data points
-    base_path = Path(f"Data_points/slope_side")
-    base_path.mkdir(parents=True, exist_ok=True)
-
-    # save metadata
-    metadata_path = base_path / "metadata.yml"
-    if not metadata_path.exists():
-        with open(metadata_path, "w") as f:
-            yaml.dump(metadata, f)
-
-    if args.parallel:
-        task_configuration = [
-            (
-                nmf,
-                data_block,
-                base_path,
-                match_leg_to_joints,
-                joint_ids,
-                slope,
-                "x",
-                base_path,
-            )
-            for slope in slopes_in_degrees
-        ]
-        with multiprocessing.Pool(4) as pool:
-            pool.starmap(run_CPG, task_configuration)
-        pool.join()
-        pool.close()
-    else:
-        for slope in slopes_in_degrees:
-            run_CPG(
-                nmf,
-                data_block,
-                match_leg_to_joints,
-                joint_ids,
-                slope,
-                "x",
-                base_path,
-            )
-    print("Done with front and side slope experiments")
-
-
-
-if __name__ == "__main__":
-    args = argparse.ArgumentParser()
-    args.add_argument(
-        "--parallel", action="store_true", help="Run experiments in parallel"
-    )
-    args = args.parse_args()
-    main(args)

@@ -11,7 +11,7 @@ import yaml
 # Colors for the side gravity green and getting darker as the fly is more inclined
 
 # Load the data points
-base_path = Path(f"Data_points/slope_side")
+base_path = Path(f"Data_points/slope_front")
 # get all pkl files in the folder
 pkl_files = list(base_path.glob("*.pkl"))
 
@@ -45,7 +45,7 @@ for pkl_file in pkl_files:
     # Load the data points
     obs_list = np.load(pkl_file, allow_pickle=True)
     # Get the x,y,z positions
-    xyz_positions = np.array([obs["fly"][0] for obs in obs_list[n_stabilization_steps+1000:]])
+    xyz_positions = np.array([obs["fly"][0] for obs in obs_list[n_stabilization_steps:]])
     xyz_positions_list.append(xyz_positions)
     # Rotate the x,y,z positions if the gravtiy is changed i > gravity_switching_step-n_stabilization_steps
     xyz_positions_rotated = np.array(
@@ -106,29 +106,37 @@ for coord1, coord2 in [["x", "y"], ["x", "z"], ["y", "z"]]:
     coord2_values_rotated = xyz_positions_list_rotated[:, :, coord_corresp[coord2]]
 
     for i, slope in enumerate(slope_vector):
+        if slope not in [0, 30, 60, 90]:
+            continue
         color = base_color * (1 - i / len(slope_vector))
         axs[0].plot(
-            coord1_values[i],
-            coord2_values[i],
+            coord1_values[i][5000:10000],
+            coord2_values[i][5000:10000],
             label=f"{slope}, {rotation_axis}",
             color=color,
         )
         axs[1].plot(
-            coord1_values_rotated[i],
-            coord2_values_rotated[i],
+            coord1_values_rotated[i][5000:10000],
+            coord2_values_rotated[i][5000:10000],
             label=f"{slope}, {rotation_axis}",
             color=color,
         )
 
     # No labels on ax 0
+    print(f"Length after 5000 steps: {coord1_values[0][5000:].size} steps")
 
     axs[0].set_title("Original")
     axs[0].set_xlabel(f"{coord1} position (mm)")
     axs[0].set_ylabel(f"{coord2} position (mm)")
+    axs[0].set_ylim([0, 2])
     axs[0].legend()
+    axs[0].set_aspect('equal')
     axs[1].set_title("Rotated")
     axs[1].set_xlabel(f"{coord1} position (mm)")
     axs[1].set_ylabel(f"{coord2} position (mm)")
     axs[1].legend()
+    axs[1].set_aspect('equal')
 
     fig.savefig(base_path / f"{coord1}_{coord2}.png")
+    fig.savefig(base_path / f"{coord1}_{coord2}.pdf")
+    print(f"Saved {base_path / f'{coord1}_{coord2}.png/pdf'}")
