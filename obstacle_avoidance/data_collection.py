@@ -18,6 +18,5 @@ sim = NMFObservation(
 
 obs,_,_,_,_ = sim.step([0,0])
 print(obs.shape)
-print(np.mean(obs))
 
 sim.close()

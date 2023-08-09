@@ -54,8 +54,8 @@ class ObstacleOdorArena(OdorArena):
         walls_color = (0,0,0,1)
 
         self.walls_positions = [
-            (walls_dist[0], walls_dist[1], walls_dims[2]/2), 
-            (2*walls_dist[0], -walls_dist[1], walls_dims[2]/2)
+            np.array([walls_dist[0], walls_dist[1], walls_dims[2]/2]), 
+            np.array([2*walls_dist[0], -walls_dist[1], walls_dims[2]/2])
         ]
 
         for p in self.walls_positions:
@@ -74,10 +74,12 @@ class ObstacleOdorArena(OdorArena):
         norms = []
         distances = []
         for p in self.walls_positions:
-            vec = position-np.array(p)
+            vec = np.array(p) - position
             norms.append(np.linalg.norm(vec))
             distances.append(vec[:2])
-        idx = np.ndarray(norms).argsort()
+
+        distances = np.array(distances)
+        idx = np.argmin(np.array(norms))
         return distances[idx]
 
 
@@ -183,9 +185,11 @@ class NMFObservation(NMFCPG):
         return obs, 0, terminated, truncated, raw_info
     
     def _process_obs(self, raw_obs):
-        vision = np.maximum(raw_obs['vision'][:,:,0], raw_obs['vision'][:,:,1])
-        vision = vision.flatten()
-        features = np.zeros(6) 
+        vision = raw_obs['vision'].max(axis=2)
+
+        distance = self.arena.get_walls_distance(raw_obs['fly'][0,:])
+        # Check that an obstacle is visible
+        see_obs = np.count_nonzero(vision < self.obj_threshold) > 0
         
-        return np.concatenate((vision, features))
+        return np.concatenate((vision.flatten(), see_obs*distance, [see_obs]))
 
