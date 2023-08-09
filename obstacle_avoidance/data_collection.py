@@ -16,7 +16,7 @@ save_path = "../data"
 if not os.path.exists(save_path):
    os.makedirs(save_path)
 
-num_pos = 2000
+num_pos = 4000
 steps = 2
 pos_range = [[0,30],[-12,12]]
 
