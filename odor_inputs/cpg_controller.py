@@ -106,7 +106,6 @@ class CPG:
         dphases = np.clip(dphases, 0, None)
 
         damplitudes = np.multiply(self.rates, targ_ampl - amplitudes)
-        # print("targ_ampl ", targ_ampl, " ", damplitudes)
 
         return dphases, damplitudes
 
@@ -115,7 +114,7 @@ class CPG:
         self.amplitude = np.random.rand(self.n_oscillators)
 
 
-class NMFCPG(gym.Env):
+class NMFCPG(NeuroMechFlyMuJoCo):
     """Wrapper for the NeuroMechFlyMujoco class for Reinforcement Learning.
 
     Attributes
@@ -160,19 +159,14 @@ class NMFCPG(gym.Env):
         **kwargs,
     ):
         # The underlying normal NMF environment
-        self.nmf = NeuroMechFlyMuJoCo(**kwargs)
+        super().__init__(**kwargs)
         # Number of dofs of the observation space
-        self.num_dofs = len(self.nmf.actuated_joints)
+        self.num_dofs = len(self.actuated_joints)
         # Action space - 2 values (alphaL and alphaR)
         self.action_space = spaces.Box(low=-1, high=1, shape=(2,))
-
-        # Time - in RL timesteps
-        self.timer = 0
-        # Time - in simulation timesteps
-        self.nmftimer = 0
-
+        
         # CPG initialization
-        self.cpg = CPG(self.nmf.timestep, n_oscillators)
+        self.cpg = CPG(self.timestep, n_oscillators)
         self.n_stabilisation_steps = n_stabilisation_steps
         for _ in range(n_stabilisation_steps):
             self.cpg.step()
@@ -184,7 +178,7 @@ class NMFCPG(gym.Env):
         self.cpg.reset()
         for _ in range(self.n_stabilisation_steps):
             self.cpg.step()
-        return self.nmf.reset()
+        return super().reset()
 
     def step(self, action):
         # Scaling of the action to go from [-1,1] -> [-0.5,0.5]
@@ -194,7 +188,7 @@ class NMFCPG(gym.Env):
         joints_action = self.compute_joints(action)
 
         # Step simulation and get observation after it
-        return self.nmf.step(joints_action)
+        return super().step(joints_action)
 
     def compute_joints(self, action):
         """Turn NN output into joint position."""
@@ -213,12 +207,12 @@ class NMFCPG(gym.Env):
 
     def _load_preprogrammed_stepping(self):
         legs = ["LF", "LM", "LH", "RF", "RM", "RH"]
-        n_joints = len(self.nmf.actuated_joints)
+        n_joints = len(self.actuated_joints)
         self.joint_ids = np.arange(n_joints).astype(int)
         self.match_leg_to_joints = np.array(
             [
                 i
-                for joint in self.nmf.actuated_joints
+                for joint in self.actuated_joints
                 for i, leg in enumerate(legs)
                 if leg in joint
             ]
@@ -232,41 +226,41 @@ class NMFCPG(gym.Env):
         # Treatment of the pre-recorded data
         step_duration = len(data["joint_LFCoxa"])
         self.interp_step_duration = int(
-            step_duration * data["meta"]["timestep"] / self.nmf.timestep
+            step_duration * data["meta"]["timestep"] / self.timestep
         )
         step_data_block_base = np.zeros(
-            (len(self.nmf.actuated_joints), self.interp_step_duration)
+            (len(self.actuated_joints), self.interp_step_duration)
         )
         measure_t = np.arange(step_duration) * data["meta"]["timestep"]
-        interp_t = np.arange(self.interp_step_duration) * self.nmf.timestep
-        for i, joint in enumerate(self.nmf.actuated_joints):
+        interp_t = np.arange(self.interp_step_duration) * self.timestep
+        for i, joint in enumerate(self.actuated_joints):
             step_data_block_base[i, :] = np.interp(interp_t, measure_t, data[joint])
 
         self.step_data = step_data_block_base.copy()
 
         for side in ["L", "R"]:
             self.step_data[
-                self.nmf.actuated_joints.index(f"joint_{side}MCoxa")
+                self.actuated_joints.index(f"joint_{side}MCoxa")
             ] += np.deg2rad(
                 10
             )  # Protract the midlegs
             self.step_data[
-                self.nmf.actuated_joints.index(f"joint_{side}HFemur")
+                self.actuated_joints.index(f"joint_{side}HFemur")
             ] += np.deg2rad(
                 -5
             )  # Retract the hindlegs
             self.step_data[
-                self.nmf.actuated_joints.index(f"joint_{side}HTarsus1")
+                self.actuated_joints.index(f"joint_{side}HTarsus1")
             ] -= np.deg2rad(
                 15
             )  # Tarsus more parallel to the ground (flexed) (also helps with the hindleg retraction)
             self.step_data[
-                self.nmf.actuated_joints.index(f"joint_{side}FFemur")
+                self.actuated_joints.index(f"joint_{side}FFemur")
             ] += np.deg2rad(
                 15
             )  # Protract the forelegs (slightly to conterbalance Tarsus flexion)
             self.step_data[
-                self.nmf.actuated_joints.index(f"joint_{side}FTarsus1")
+                self.actuated_joints.index(f"joint_{side}FTarsus1")
             ] -= np.deg2rad(
                 15
             )  # Tarsus more parallel to the ground (flexed) (add some retraction of the forelegs)
@@ -285,11 +279,3 @@ class NMFCPG(gym.Env):
         ).astype(int)
         t_indices = t_indices[self.match_leg_to_joints]
         return t_indices
-
-    # Render environment
-    def render(self):
-        return self.nmf.render()
-
-    # Close environment
-    def close(self):
-        return self.nmf.close()
