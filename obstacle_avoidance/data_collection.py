@@ -18,19 +18,21 @@ if not os.path.exists(save_path):
 
 num_pos = 2000
 steps = 2
+pos_range = [[0,30],[-12,12]]
 
 dataset = []
 
 for f in trange(num_pos):
     arena = ObstacleOdorArena()
-    spawn_pos = (np.random.randint(-1,25),np.random.randint(-12,12),0.5)
+    spawn_pos = (np.random.randint(*pos_range[0]),np.random.randint(*pos_range[1]),0.5)
     spawn_orient = (0,0,1,np.random.random()*2*np.pi)
     sim = NMFObservation(
         sim_params=sim_params,
         arena=arena,
         obj_threshold=50,
         spawn_pos=spawn_pos,
-        spawn_orient=spawn_orient
+        spawn_orient=spawn_orient,
+        pos_range=pos_range
     )
 
     for i in range(steps):
