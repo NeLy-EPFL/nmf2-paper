@@ -140,7 +140,7 @@ class NMFObservation(NMFCPG):
     def __init__(
         self,
         decision_dt=0.0001,
-        n_stabilisation_steps: int = 0,
+        n_stabilisation_steps: int = 5000,
         obj_threshold=50,
         max_time=2,
         **kwargs

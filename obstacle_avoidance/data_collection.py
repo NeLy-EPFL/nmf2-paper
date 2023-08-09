@@ -1,22 +1,44 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import trange
+import pickle
+import os
 
 from flygym.envs.nmf_mujoco import MuJoCoParameters
 from flygym.arena.mujoco_arena import FlatTerrain
 import flygym.util.vision as vision
 from odor_vision import ObstacleOdorArena, NMFObservation
 
-arena = ObstacleOdorArena()
+
 sim_params = MuJoCoParameters(render_playspeed=0.2, render_camera="Animat/camera_top_zoomout", render_raw_vision=True, enable_olfaction=True)
 
-sim = NMFObservation(
-    sim_params=sim_params,
-    arena=arena,
-    obj_threshold=50,
-)
+save_path = "../data"
+if not os.path.exists(save_path):
+   os.makedirs(save_path)
 
-obs,_,_,_,_ = sim.step([0,0])
-print(obs.shape)
+num_pos = 2000
+steps = 2
 
-sim.close()
+dataset = []
+
+for f in trange(num_pos):
+    arena = ObstacleOdorArena()
+    spawn_pos = (np.random.randint(-1,25),np.random.randint(-12,12),0.5)
+    spawn_orient = (0,0,1,np.random.random()*2*np.pi)
+    sim = NMFObservation(
+        sim_params=sim_params,
+        arena=arena,
+        obj_threshold=50,
+        spawn_pos=spawn_pos,
+        spawn_orient=spawn_orient
+    )
+
+    for i in range(steps):
+        obs,_,_,_,_ = sim.step([0,0])
+        dataset.append(obs)
+
+    sim.close()
+
+dataset = np.array(dataset)
+with open(save_path+"/dataset.pkl", "wb") as f:
+    pickle.dump(dataset, f)
