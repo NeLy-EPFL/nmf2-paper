@@ -16,7 +16,7 @@ from flygym.envs.nmf_mujoco import MuJoCoParameters
 
 from util import linear_schedule, SaveIntermediateModelsCallback
 
-CONTINUING = True
+CONTINUING = False
 
 arena = MovingObjArena(obj_spawn_pos=(5, 3, 0), move_mode="straightHeading")
 # sim_params = MuJoCoParameters(render_playspeed=0.2, render_camera="birdseye_cam")
@@ -29,7 +29,7 @@ sim = NMFVisualTaxis(
     obj_threshold=50,
 )
 
-log_dir = Path("../logs_new")
+log_dir = Path("../logs_straight")
 log_dir.mkdir(parents=True, exist_ok=True)
 
 callback = SaveIntermediateModelsCallback(check_freq=5_000, log_dir=log_dir)
