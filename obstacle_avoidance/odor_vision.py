@@ -217,10 +217,10 @@ class NMFObservation(NMFCPG):
         vision = (1/255)*raw_obs['vision'].max(axis=2)
 
         features = self.arena.get_walls_distance(raw_obs['fly'][0,:], raw_obs['fly'][2,:])
-        if features[-1]:
-            # Normalize distance to range of possible positions
-            features[0] = (features[0]-self.xmin)/(self.xmax-self.xmin)
-            features[1] = (features[1]-self.ymin)/(self.ymax-self.ymin)
+        # if features[-1]:
+        #     # Normalize distance to range of possible positions
+        #     features[0] = (features[0]-self.xmin)/(self.xmax-self.xmin)
+        #     features[1] = (features[1]-self.ymin)/(self.ymax-self.ymin)
 
         # Check that the visual input contains an obstacle, otherwise mask features
         # see_obs = np.count_nonzero(vision < self.obj_threshold) > 0
