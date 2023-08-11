@@ -318,7 +318,7 @@ class NMFVisualTaxis(NMFCPG):
             else: # Deal with cases where the object is seen by one eye only
                 self._see_obj -= 1
                 if self._last_observation is not None:
-                    features[i, :2] = self._last_observation[2*i:2*i+2]
+                    features[i, :2] = self._last_observation[3*i:3*i+1]
                 else:
                     features[i, :2] = 0
             features[i, 2] = is_obj_coords.shape[0]
@@ -345,8 +345,9 @@ class NMFVisualTaxis(NMFCPG):
 
         # Termination with penalty if the fly has tipped over
         if abs(fly_orient[2]) > pitch_threshold: #### which is pitch???
-            #reward = -200
+            reward = -200
             terminated = True
+            return reward, terminated
 
         dist_from_obj = np.linalg.norm(fly_pos - obj_pos)
         vec_fly = np.array([np.cos(fly_orient[0]+np.pi/2),np.sin(fly_orient[0]+np.pi/2)])
@@ -358,10 +359,19 @@ class NMFVisualTaxis(NMFCPG):
             terminated = True
             reward = -1
         elif self._last_cosangle is not None:
-            reward = 10*(cosangle-self._last_cosangle)
+            if cosangle>self._last_cosangle:
+                reward = abs(cosangle)
+            else:
+                reward = cosangle
         else:
             reward = 0
         self._last_cosangle = cosangle
+        
+        # elif self._last_cosangle is not None:
+        #     reward = 10*(cosangle-self._last_cosangle)
+        # else:
+        #     reward = 0
+        # self._last_cosangle = cosangle
 
         return reward, terminated
         
