@@ -281,7 +281,7 @@ class NMFVisualTaxis(NMFCPG):
         self._last_observation = None
         self._last_dist_from_obj = None
         self._last_cosangle = None
-        self.arena.reset(new_spawn_pos=True, new_move_mode=True)
+        self.arena.reset(new_spawn_pos=True, new_move_mode="straightHeading")
         return obs, info
 
     def step(self, amplitude):
@@ -299,7 +299,7 @@ class NMFVisualTaxis(NMFCPG):
             fly_orient=raw_obs["fly"][2,:],
             fly_pos = raw_obs["fly"][0,:], obj_pos=self.arena.ball_pos
         )
-        reward = orient_reward + 0.05*dist_reward
+        reward = orient_reward + 0.01*dist_reward
 
         truncated = raw_trunc or self.curr_time >= self.max_time
         terminated = raw_term or termin or not(self._see_obj)
@@ -318,7 +318,7 @@ class NMFVisualTaxis(NMFCPG):
             else: # Deal with cases where the object is seen by one eye only
                 self._see_obj -= 1
                 if self._last_observation is not None:
-                    features[i, :2] = self._last_observation[2*i:2*i+2]
+                    features[i, :2] = self._last_observation[3*i:3*i+1]
                 else:
                     features[i, :2] = 0
             features[i, 2] = is_obj_coords.shape[0]
@@ -345,8 +345,9 @@ class NMFVisualTaxis(NMFCPG):
 
         # Termination with penalty if the fly has tipped over
         if abs(fly_orient[2]) > pitch_threshold: #### which is pitch???
-            #reward = -200
+            reward = -200
             terminated = True
+            return reward, terminated
 
         dist_from_obj = np.linalg.norm(fly_pos - obj_pos)
         vec_fly = np.array([np.cos(fly_orient[0]+np.pi/2),np.sin(fly_orient[0]+np.pi/2)])
@@ -358,10 +359,19 @@ class NMFVisualTaxis(NMFCPG):
             terminated = True
             reward = -1
         elif self._last_cosangle is not None:
-            reward = 10*(cosangle-self._last_cosangle)
+            if cosangle>self._last_cosangle:
+                reward = abs(cosangle)
+            else:
+                reward = cosangle
         else:
             reward = 0
         self._last_cosangle = cosangle
+        
+        # elif self._last_cosangle is not None:
+        #     reward = 10*(cosangle-self._last_cosangle)
+        # else:
+        #     reward = 0
+        # self._last_cosangle = cosangle
 
         return reward, terminated
         
