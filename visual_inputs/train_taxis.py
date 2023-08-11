@@ -49,6 +49,6 @@ nmf_model.set_logger(new_logger)
 
 print(nmf_model.policy)
 
-nmf_model.learn(total_timesteps=80_000, progress_bar=True, callback=callback)
+nmf_model.learn(total_timesteps=50_000, progress_bar=True, callback=callback)
 nmf_model.save(str(log_dir / f"saved_model_MLPlinearlr_16"))
 mynmf.close()

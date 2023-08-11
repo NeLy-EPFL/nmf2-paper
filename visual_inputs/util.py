@@ -67,7 +67,7 @@ class SaveIntermediateModelsCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         if self.n_calls % self.check_freq == 0:
-            save_path = os.path.join(self.log_dir, f"model{self.num_timesteps}_")
+            save_path = os.path.join(self.log_dir, f"model{self.num_timesteps}")
             print(f"Saving intermediate model to {save_path}")
             self.model.save(save_path)
         return True
