@@ -12,7 +12,7 @@ if [ "$parallelize" = true ] ; then
     echo "3/4"
     python generate_datapts.py --arena mixed --adhesion  --parallel
     echo "4/4"
-
+<<com
     echo "Running all arenas without adhesion"
     python generate_datapts.py --arena flat --parallel
     echo "1/4"
@@ -22,6 +22,7 @@ if [ "$parallelize" = true ] ; then
     echo "3/4"
     python generate_datapts.py --arena mixed --parallel
     echo "4/4"
+com
 else
     echo "Running all arenas without adhesion [NOT PARALLEL]"
     python generate_datapts.py --arena flat  
@@ -33,6 +34,7 @@ else
     python generate_datapts.py --arena mixed  
     echo "4/4"
 
+<<com
     echo "Running all arenas with adhesion"
     python generate_datapts.py --arena flat --adhesion 
     echo "1/4"
@@ -42,6 +44,7 @@ else
     echo "3/4"
     python generate_datapts.py --arena mixed --adhesion
     echo "4/4"
+com
 fi
 
 echo "Merge videos"

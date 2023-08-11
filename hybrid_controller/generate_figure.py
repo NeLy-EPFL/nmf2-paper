@@ -11,15 +11,15 @@ all_folders = base_path.glob("*pts*")
 # Generate a scatter plot for each condition with the last fly z position¨
 # Chnage the color if the adhesion is on
 # Save the figure in the base directory
-kp_selector = "_kp40.0"
+kp_selector = "_kp30.0"
 
-save_path = Path(f"panel{kp_selector}.png")
+save_path = Path(f"panel{kp_selector}_noadh.png")
 
-controller = ["CPG", "Decentralized"]
+controller = ["CPG", "Decentralized", "hybrid"]
 terrain = ["flat", "blocks", "gapped", "mixed"]
 adhesion = [True, False]
 
-conditions = [(c, t) for c in controller for t in terrain]
+conditions = [(c, t) for t in terrain for c in controller ]
 n_conditions = len(conditions)
 
 fig, ax = plt.subplots(figsize=(20, 10))
@@ -46,35 +46,40 @@ for controller, terrain in conditions:
 
 # Plot the data in a boxplot with visible points way
 
+#print(np.shape(all_data_pts))
+
 for i in range(n_conditions):
+    index = i
     if i == 0:
         ax.scatter(
-            np.ones(len(all_data_pts[2 * i])) * i,
-            all_data_pts[2 * i],
-            c=all_colors[2 * i],
+            np.ones(len(all_data_pts[index])) * i,
+            all_data_pts[index],
+            c=all_colors[2*i],
             label="adhesion ON",
         )
-        ax.scatter(
+        ax.boxplot(all_data_pts[index], positions=[i], widths=0.6, showfliers=False)
+        """ax.scatter(
             np.ones(len(all_data_pts[2 * i + 1])) * i,
             all_data_pts[2 * i + 1],
             c=all_colors[2 * i + 1],
             label="adhesion OFF",
-        )
+        )"""
     else:
         ax.scatter(
-            np.ones(len(all_data_pts[2 * i])) * i,
-            all_data_pts[2 * i],
-            c=all_colors[2 * i],
+            np.ones(len(all_data_pts[index])) * i,
+            all_data_pts[index],
+            c=all_colors[2*i],
         )
-        ax.scatter(
+        ax.boxplot(all_data_pts[index], positions=[i], widths=0.6, showfliers=False)
+        """ax.scatter(
             np.ones(len(all_data_pts[2 * i + 1])) * i,
             all_data_pts[2 * i + 1],
             c=all_colors[2 * i + 1],
-        )
+        )"""
 
 # set the xticks to strings with the condition names
 ax.set_xticks(np.arange(n_conditions))
-ax.set_xticklabels([f"{c}_{t}" for c, t in conditions])
+ax.set_xticklabels([f"{c}_{t}" for c, t in conditions], rotation=45)
 
 ax.set_xlim(-0.5, n_conditions + 0.5)
 ax.set_ylabel("x distance travelled")
