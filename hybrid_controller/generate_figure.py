@@ -13,11 +13,11 @@ all_folders = base_path.glob("*pts*")
 # Save the figure in the base directory
 kp_selector = "_kp30.0"
 
-save_path = Path(f"panel{kp_selector}_noadh.png")
+save_path = Path(f"outputs/panel{kp_selector}_noadh.pdf")
 
 controller = ["CPG", "Decentralized", "hybrid"]
 terrain = ["flat", "blocks", "gapped", "mixed"]
-adhesion = [True, False]
+adhesion = [True]
 
 conditions = [(c, t) for t in terrain for c in controller ]
 n_conditions = len(conditions)

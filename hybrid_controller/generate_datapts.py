@@ -21,7 +21,7 @@ import yaml
 ENVIRONEMENT_SEED = 0
 
 N_STABILIZATION_STEPS = 2000
-RUN_TIME = 0.5
+RUN_TIME = 1.5
 
 LEGS = ["RF", "RM", "RH", "LF", "LM", "LH"]
 N_OSCILLATORS = len(LEGS)
@@ -542,7 +542,7 @@ def main(args):
     positions[:, 0] = positions[:, 0] * max_x - shift_x
     positions[:, 1] = positions[:, 1] * max_y - shift_y
 
-    internal_seeds = [42, 33, 0, 100, 99, 56, 28, 7, 21, 13]
+    internal_seeds = list(range(20))
     assert args.n_exp <= len(internal_seeds), "Not enough internal seeds defined"
     internal_seeds = internal_seeds[: args.n_exp]
 
@@ -622,7 +622,7 @@ def main(args):
     start_exps = time.time()
     print("Starting experiments")
     # Parallelize the experiment
-    if args.parallel:
+    if args.n_procs > 1:
         task_configuration = [
             (
                 seed,
@@ -673,9 +673,7 @@ if __name__ == "__main__":
     args.add_argument(
         "--n_exp", type=int, default=10, help="Number of experiments to run"
     )
-    args.add_argument(
-        "--parallel", action="store_true", help="Run experiments in parallel"
-    )
+    args.add_argument("--n_procs", type=int, default=1, help="Number of processes")
     args = args.parse_args()
 
     main(args)
