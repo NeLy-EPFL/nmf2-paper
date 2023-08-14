@@ -354,3 +354,4 @@ $RECYCLE.BIN/
 # End of https://www.toptal.com/developers/gitignore/api/vim,emacs,macos,linux,windows,visualstudiocode,git,python,jupyternotebooks
 
 *.mp4
+Data_points

@@ -44,7 +44,7 @@ class MovingObjArena(BaseArena):
         self,
         size: Tuple[float, float] = (200, 200),
         friction: Tuple[float, float, float] = (1, 0.005, 0.0001),
-        obj_radius: float = 2,
+        obj_radius: float = 1,
         obj_spawn_pos: Tuple[float, float, float] = (0, 2, 0),
         move_mode: str = "random",
         move_speed: float = 25,
@@ -122,15 +122,6 @@ class MovingObjArena(BaseArena):
             )
         elif move_mode != "random":
             raise NotImplementedError
-
-        if move_speed == -1:
-            base_speed = 0.003
-            if self.move_mode == "straightHeading":
-                self.move_speed = base_speed
-            elif self.move_mode == "circling" or self.move_mode == "s_shape":
-                self.move_speed = base_speed / self.radius
-        else:
-            self.move_speed = move_speed
 
         self.root_element.worldbody.add(
             "camera",
@@ -254,6 +245,8 @@ class MovingObjArena(BaseArena):
     #     else:
     #         self.move_speed = new_move_speed
 
+        self.curr_time = 0
+
 
 class NMFVisualTaxis(NMFCPG):
     def __init__(
@@ -366,11 +359,19 @@ class NMFVisualTaxis(NMFCPG):
             is_obj_coords = self.coms[is_obj]
             if is_obj_coords.shape[0] > 0:
                 features[i, :2] = is_obj_coords.mean(axis=0)
+            else: # Deal with cases where the object is seen by one eye only
+                self._see_obj -= 1
+                if self._last_observation is not None:
+                    features[i, :2] = self._last_observation[3*i:3*i+1]
+                else:
+                    features[i, :2] = 0
             features[i, 2] = is_obj_coords.shape[0]
         features[:, 0] /= config.raw_img_height_px  # normalize y_center
         features[:, 1] /= config.raw_img_width_px  # normalize x_center
         # features[:, :2] = features[:, :2] * 2 - 1  # center around 0
         features[:, 2] /= config.num_ommatidia_per_eye  # normalize area
+
+        self._last_observation = features.flatten()
         return features.flatten()
 
     def _calc_delta_dist(self, fly_pos, obj_pos):
@@ -381,3 +382,41 @@ class NMFVisualTaxis(NMFCPG):
             delta_dist = 0
         self._last_offset_from_ideal = dist_from_obj
         return delta_dist
+
+    def _compute_orientation_reward(self, fly_orient, fly_pos, obj_pos):
+        terminated = False
+        pitch_threshold = np.pi/2
+
+        # Termination with penalty if the fly has tipped over
+        if abs(fly_orient[2]) > pitch_threshold: #### which is pitch???
+            reward = -200
+            terminated = True
+            return reward, terminated
+
+        dist_from_obj = np.linalg.norm(fly_pos - obj_pos)
+        vec_fly = np.array([np.cos(fly_orient[0]+np.pi/2),np.sin(fly_orient[0]+np.pi/2)])
+        vec_obj = np.array((1/dist_from_obj)*(obj_pos[:2]-fly_pos[:2]))
+        cosangle = np.dot(vec_obj, vec_fly)
+
+        # Termination if object out of field of view
+        if cosangle < (-1/np.sqrt(2)):
+            terminated = True
+            reward = -1
+        elif self._last_cosangle is not None:
+            if cosangle>self._last_cosangle:
+                reward = abs(cosangle)
+            else:
+                reward = cosangle
+        else:
+            reward = 0
+        self._last_cosangle = cosangle
+        
+        # elif self._last_cosangle is not None:
+        #     reward = 10*(cosangle-self._last_cosangle)
+        # else:
+        #     reward = 0
+        # self._last_cosangle = cosangle
+
+        return reward, terminated
+        
+
