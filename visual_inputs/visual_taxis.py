@@ -2,6 +2,7 @@ import numpy as np
 import gymnasium as gym
 from typing import Tuple
 from dm_control import mjcf
+from dm_control.rl.control import PhysicsError
 
 import flygym.util.vision as vision
 import flygym.util.config as config
@@ -56,8 +57,8 @@ class MovingObjArena(BaseArena):
             builtin="checker",
             width=300,
             height=300,
-            rgb1=(0.45, 0.55, 0.65),
-            rgb2=(0.4, 0.5, 0.6),
+            rgb1=(0.4, 0.4, 0.4),
+            rgb2=(0.5, 0.5, 0.5),
         )
         grid = self.root_element.asset.add(
             "material",
@@ -116,7 +117,7 @@ class MovingObjArena(BaseArena):
                 [
                     move_speed * t + obj_spawn_pos[0],
                     0.25 * move_speed * np.sin(t * 3) + obj_spawn_pos[1],
-                    obj_radius + obj_spawn_pos[2],
+                    obj_radius,
                 ]
             )
         elif move_mode != "random":
@@ -170,81 +171,88 @@ class MovingObjArena(BaseArena):
 
         self.curr_time += dt
         self._obj_pos_history_li.append([self.curr_time, *self.ball_pos])
+    
+    def reset(self, physics):
+        self.curr_time = 0
+        self.ball_pos = self.init_ball_pos
+        physics.bind(self.object_body).mocap_pos = self.ball_pos
+        self._obj_pos_history_li = [[self.curr_time, *self.ball_pos]]
+        
 
     @property
     def obj_pos_history(self):
         return np.array(self._obj_pos_history_li)
 
-    def reset(self, new_spawn_pos=False, new_move_mode=False, new_move_speed=True):
-        """Reset the object position in the arena and update characteristics of its movement.
+    # def reset(self, new_spawn_pos=False, new_move_mode=False, new_move_speed=False):
+    #     """Reset the object position in the arena and update characteristics of its movement.
 
-        Parameters
-        ----------
-        new_spawn_pos : bool or Tuple[float,float,float]
-            If boolean, indicates whether a new initial position for the object is drawn randomly (True)
-            or the previous initial position is used (False - default).
-            If tuple, new position to be used as initial object position.
-        new_move_mode : bool or string
-            If boolean, indicates whether a new move_mode for the object is drawn randomly from the set of
-            possible move_mode (True) or if the previous one is kept (False).
-            If string, new move_mode to be used for the object.
-        new_move_speed : bool or float
-            If boolean, indicates whether move_speed of the object is updated to the default for the object's
-            move_mode (True) or if the previous one is kept (False).
-            If float, value of the new move_speed.
-        """
-        if isinstance(new_spawn_pos, bool):
-            if new_spawn_pos == True:
-                self.init_ball_pos = (
-                    np.random.randint(6, 8),
-                    np.random.randint(-8, 8),
-                    self.ball_pos[2],
-                )
-        else:
-            self.init_ball_pos = new_spawn_pos
+    #     Parameters
+    #     ----------
+    #     new_spawn_pos : bool or Tuple[float,float,float]
+    #         If boolean, indicates whether a new initial position for the object is drawn randomly (True)
+    #         or the previous initial position is used (False - default).
+    #         If tuple, new position to be used as initial object position.
+    #     new_move_mode : bool or string
+    #         If boolean, indicates whether a new move_mode for the object is drawn randomly from the set of
+    #         possible move_mode (True) or if the previous one is kept (False).
+    #         If string, new move_mode to be used for the object.
+    #     new_move_speed : bool or float
+    #         If boolean, indicates whether move_speed of the object is updated to the default for the object's
+    #         move_mode (True) or if the previous one is kept (False).
+    #         If float, value of the new move_speed.
+    #     """
+    #     if isinstance(new_spawn_pos, bool):
+    #         if new_spawn_pos == True:
+    #             self.init_ball_pos = (
+    #                 np.random.randint(6, 8),
+    #                 np.random.randint(-8, 8),
+    #                 self.ball_pos[2],
+    #             )
+    #     else:
+    #         self.init_ball_pos = new_spawn_pos
 
-        if isinstance(new_move_mode, bool):
-            if new_move_mode == True:
-                self.move_mode = np.random.choice(
-                    ["straightHeading", "s_shape"]
-                )  # , "random"])
-        else:
-            self.move_mode = new_move_mode
+    #     if isinstance(new_move_mode, bool):
+    #         if new_move_mode == True:
+    #             self.move_mode = np.random.choice(
+    #                 ["straightHeading", "s_shape"]
+    #             )  # , "random"])
+    #     else:
+    #         self.move_mode = new_move_mode
 
-        self.ball_pos = self.init_ball_pos
-        if self.move_mode == "straightHeading":
-            # Draw new random direction
-            self.direction = 0.5 * np.pi * (np.random.rand() - 0.5)
+    #     self.ball_pos = self.init_ball_pos
+    #     if self.move_mode == "straightHeading":
+    #         # Draw new random direction
+    #         self.direction = 0.5 * np.pi * (np.random.rand() - 0.5)
 
-        elif self.move_mode == "circling":
-            # Draw new rotation direction and center
-            self.rotation_direction = np.random.choice([-1, 1])
-            self.rotation_center = (
-                np.random.randint(0, 4),
-                self.rotation_direction * np.random.randint(6, 12),
-            )
-            self.radius = np.linalg.norm(
-                np.array(self.ball_pos[0:2]) - np.array(self.rotation_center)
-            )
-            self.theta = np.arcsin(
-                (self.ball_pos[1] - self.rotation_center[1]) / self.radius
-            )
+    #     elif self.move_mode == "circling":
+    #         # Draw new rotation direction and center
+    #         self.rotation_direction = np.random.choice([-1, 1])
+    #         self.rotation_center = (
+    #             np.random.randint(0, 4),
+    #             self.rotation_direction * np.random.randint(6, 12),
+    #         )
+    #         self.radius = np.linalg.norm(
+    #             np.array(self.ball_pos[0:2]) - np.array(self.rotation_center)
+    #         )
+    #         self.theta = np.arcsin(
+    #             (self.ball_pos[1] - self.rotation_center[1]) / self.radius
+    #         )
 
-        elif self.move_mode == "s_shape":
-            self.radius = 10
-            self.rotation_center = (self.ball_pos[0] + self.radius, 0)
-            self.rotation_direction = np.random.choice([-1, 1])
-            self.theta = np.pi
+    #     elif self.move_mode == "s_shape":
+    #         self.radius = 10
+    #         self.rotation_center = (self.ball_pos[0] + self.radius, 0)
+    #         self.rotation_direction = np.random.choice([-1, 1])
+    #         self.theta = np.pi
 
-        if isinstance(new_move_speed, bool):
-            if new_move_speed == True:
-                base_speed = 0.003
-                if self.move_mode == "straightHeading":
-                    self.move_speed = base_speed
-                elif self.move_mode == "circling" or self.move_mode == "s_shape":
-                    self.move_speed = base_speed / self.radius
-        else:
-            self.move_speed = new_move_speed
+    #     if isinstance(new_move_speed, bool):
+    #         if new_move_speed == True:
+    #             base_speed = 0.003
+    #             if self.move_mode == "straightHeading":
+    #                 self.move_speed = base_speed
+    #             elif self.move_mode == "circling" or self.move_mode == "s_shape":
+    #                 self.move_speed = base_speed / self.radius
+    #     else:
+    #         self.move_speed = new_move_speed
 
 
 class NMFVisualTaxis(NMFCPG):
@@ -273,7 +281,7 @@ class NMFVisualTaxis(NMFCPG):
         )
         self.decision_dt = decision_dt
         self.obj_threshold = obj_threshold
-        self.num_sub_steps = int(decision_dt / self.timestep)
+        self.num_substeps = int(decision_dt / self.timestep)
 
         # Override spaces
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=(2,))
@@ -285,24 +293,76 @@ class NMFVisualTaxis(NMFCPG):
             mask = vision.ommatidia_id_map == i + 1
             self.coms[i, :] = np.argwhere(mask).mean(axis=0)
 
-        self._last_dist_from_obj = None
+        self._last_offset_from_ideal = self._calc_offset_from_ideal(
+            np.zeros(2), self.arena.ball_pos[:2]
+        )
+
+    @staticmethod
+    def _calc_offset_from_ideal(fly_pos, obj_pos):
+        fly_obj_distance = np.linalg.norm(fly_pos - obj_pos)
+        return np.abs(fly_obj_distance - 5)
 
     def step(self, amplitude):
-        for i in range(self.num_sub_steps):
-            raw_obs, _, raw_term, raw_trunc, raw_info = super().step(amplitude)
-            super().render()
-        obs = self._get_visual_features()
-        reward = self._calc_delta_dist(
-            fly_pos=raw_obs["fly"][0, :], obj_pos=self.arena.ball_pos
+        try:
+            for i in range(self.num_substeps):
+                raw_obs, _, raw_term, raw_trunc, info = super().step(amplitude)
+                super().render()
+        except PhysicsError:
+            print("Physics error, resetting environment")
+            return np.zeros((6,), dtype="float32"), 0, False, True, {}
+
+        assert abs(self.curr_time - self._last_vision_update_time) < 0.5 * self.timestep
+        obs = self._get_visual_features().astype("float32")
+
+        # calculate reward
+        fly_pos = super().get_observation()["fly"][0, :2]
+        curr_offset_from_ideal = self._calc_offset_from_ideal(
+            fly_pos, self.arena.ball_pos[:2]
         )
-        truncated = raw_trunc or self.curr_time >= self.max_time
-        return obs, reward, raw_term, truncated, raw_info
+        fly_obj_distance = np.linalg.norm(fly_pos - self.arena.ball_pos[:2])
+        unadjusted_reward = self._last_offset_from_ideal - curr_offset_from_ideal
+        if curr_offset_from_ideal > 15:  # too far from object, fail
+            reward = -15
+            terminated = True
+            info["state_desc"] = "too far from object"
+        elif obs[2] + obs[5] < 0.005:  # lost object from both eyes, fail
+            reward = -15
+            terminated = True
+            info["state_desc"] = "object lost visually"
+        elif curr_offset_from_ideal < 1:  # this is perfect, reward regardless of change
+            reward = 3
+            terminated = False
+            info["state_desc"] = "ideal range"
+        elif fly_obj_distance < 3:  # collision/too close, fail
+            reward = -5
+            terminated = True
+            info["state_desc"] = "collision"
+        else:  # reward is improvement from last step
+            reward = unadjusted_reward
+            terminated = False
+            info["state_desc"] = "seeking"
+        info["unadjusted reward"] = unadjusted_reward
+        info["offset_from_ideal"] = curr_offset_from_ideal
+        truncated = self.curr_time > 1 and not terminated  # start a new episode
+        self._last_offset_from_ideal = curr_offset_from_ideal
+
+        return obs, reward, terminated, truncated, info
+
+    def reset(self):
+        super().reset()
+        self.arena.reset(self.physics)
+        obs = self._get_visual_features().astype("float32")
+        return obs, {}
 
     def _get_visual_features(self):
         raw_obs = super().get_observation()
-        features = np.full((2, 3), np.nan)  # ({L, R}, {y_center, x_center, area})
+        # features = np.full((2, 3), np.nan)  # ({L, R}, {y_center, x_center, area})
+        features = np.zeros((2, 3))
         for i, ommatidia_readings in enumerate(raw_obs["vision"]):
             is_obj = ommatidia_readings.max(axis=1) < self.obj_threshold
+            is_obj[
+                np.arange(is_obj.size) % 2 == 1
+            ] = False  # only use pale-type ommatidia
             is_obj_coords = self.coms[is_obj]
             if is_obj_coords.shape[0] > 0:
                 features[i, :2] = is_obj_coords.mean(axis=0)
@@ -315,9 +375,9 @@ class NMFVisualTaxis(NMFCPG):
 
     def _calc_delta_dist(self, fly_pos, obj_pos):
         dist_from_obj = np.linalg.norm(fly_pos - obj_pos)
-        if self._last_dist_from_obj is not None:
-            delta_dist = self._last_dist_from_obj - dist_from_obj
+        if self._last_offset_from_ideal is not None:
+            delta_dist = self._last_offset_from_ideal - dist_from_obj
         else:
             delta_dist = 0
-        self._last_dist_from_obj = dist_from_obj
+        self._last_offset_from_ideal = dist_from_obj
         return delta_dist
