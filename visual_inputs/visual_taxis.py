@@ -43,7 +43,7 @@ class MovingObjArena(BaseArena):
         self,
         size: Tuple[float, float] = (200, 200),
         friction: Tuple[float, float, float] = (1, 0.005, 0.0001),
-        obj_radius: float = 2,
+        obj_radius: float = 1,
         obj_spawn_pos: Tuple[float, float, float] = (0, 2, 0),
         move_mode: str = "random",
         move_speed: float = 25,
@@ -122,15 +122,6 @@ class MovingObjArena(BaseArena):
         elif move_mode != "random":
             raise NotImplementedError
 
-        if move_speed == -1:
-            base_speed = 0.003
-            if self.move_mode == "straightHeading":
-                self.move_speed = base_speed
-            elif self.move_mode == "circling" or self.move_mode == "s_shape":
-                self.move_speed = base_speed / self.radius
-        else:
-            self.move_speed = move_speed
-
         self.root_element.worldbody.add(
             "camera",
             name="birdseye_cam",
@@ -207,22 +198,20 @@ class MovingObjArena(BaseArena):
             if new_move_mode == True:
                 self.move_mode = np.random.choice(
                     ["straightHeading", "s_shape"]
-                )  # , "random"])
+                ) 
         else:
             self.move_mode = new_move_mode
 
         self.ball_pos = self.init_ball_pos
-        if self.move_mode == "straightHeading":
-            # Draw new random direction
-            self.direction = 0.5 * np.pi * (np.random.rand() - 0.5)
 
+        if self.move_mode == "straightHeading":
+            self.direction = 0.5 * np.pi * (np.random.rand() - 0.5)
         elif self.move_mode == "circling":
-            # Draw new rotation direction and center
             self.rotation_direction = np.random.choice([-1, 1])
             self.rotation_center = (
                 np.random.randint(0, 4),
                 self.rotation_direction * np.random.randint(6, 12),
-            )
+            )  # (10*np.random.rand(),10*np.random.rand())
             self.radius = np.linalg.norm(
                 np.array(self.ball_pos[0:2]) - np.array(self.rotation_center)
             )
@@ -230,21 +219,17 @@ class MovingObjArena(BaseArena):
                 (self.ball_pos[1] - self.rotation_center[1]) / self.radius
             )
 
-        elif self.move_mode == "s_shape":
-            self.radius = 10
-            self.rotation_center = (self.ball_pos[0] + self.radius, 0)
-            self.rotation_direction = np.random.choice([-1, 1])
-            self.theta = np.pi
-
         if isinstance(new_move_speed, bool):
             if new_move_speed == True:
-                base_speed = 0.003
-                if self.move_mode == "straightHeading":
+                base_speed = 25
+                if self.move_mode == "straightHeading" or self.move_mode == "s_shape":
                     self.move_speed = base_speed
-                elif self.move_mode == "circling" or self.move_mode == "s_shape":
+                elif self.move_mode == "circling":
                     self.move_speed = base_speed / self.radius
         else:
             self.move_speed = new_move_speed
+
+        self.curr_time = 0
 
 
 class NMFVisualTaxis(NMFCPG):
@@ -286,31 +271,63 @@ class NMFVisualTaxis(NMFCPG):
             self.coms[i, :] = np.argwhere(mask).mean(axis=0)
 
         self._last_dist_from_obj = None
+        self._last_observation = None
+        self._last_cosangle = None
+        self._see_obj = 2
+
+    def reset(self):
+        raw_obs, info = super().reset()
+        obs = self._get_visual_features(raw_obs)
+        self._last_observation = None
+        self._last_dist_from_obj = None
+        self._last_cosangle = None
+        self.arena.reset(new_spawn_pos=True, new_move_mode="straightHeading")
+        return obs, info
 
     def step(self, amplitude):
         for i in range(self.num_sub_steps):
             raw_obs, _, raw_term, raw_trunc, raw_info = super().step(amplitude)
             super().render()
         obs = self._get_visual_features()
-        reward = self._calc_delta_dist(
+
+        # Compute reward for reducing distance to object
+        dist_reward = self._calc_delta_dist(
             fly_pos=raw_obs["fly"][0, :], obj_pos=self.arena.ball_pos
         )
-        truncated = raw_trunc or self.curr_time >= self.max_time
-        return obs, reward, raw_term, truncated, raw_info
+        # Compute reward for movement direction towards the object
+        orient_reward, termin = self._compute_orientation_reward(
+            fly_orient=raw_obs["fly"][2,:],
+            fly_pos = raw_obs["fly"][0,:], obj_pos=self.arena.ball_pos
+        )
+        reward = orient_reward + 0.01*dist_reward
 
-    def _get_visual_features(self):
-        raw_obs = super().get_observation()
+        truncated = raw_trunc or self.curr_time >= self.max_time
+        terminated = raw_term or termin or not(self._see_obj)
+        return obs, reward, terminated, truncated, raw_info
+
+    def _get_visual_features(self, raw_obs=None):
+        self._see_obj = 2
+        if raw_obs is None:
+            raw_obs = super().get_observation()
         features = np.full((2, 3), np.nan)  # ({L, R}, {y_center, x_center, area})
         for i, ommatidia_readings in enumerate(raw_obs["vision"]):
             is_obj = ommatidia_readings.max(axis=1) < self.obj_threshold
             is_obj_coords = self.coms[is_obj]
             if is_obj_coords.shape[0] > 0:
                 features[i, :2] = is_obj_coords.mean(axis=0)
+            else: # Deal with cases where the object is seen by one eye only
+                self._see_obj -= 1
+                if self._last_observation is not None:
+                    features[i, :2] = self._last_observation[3*i:3*i+1]
+                else:
+                    features[i, :2] = 0
             features[i, 2] = is_obj_coords.shape[0]
         features[:, 0] /= config.raw_img_height_px  # normalize y_center
         features[:, 1] /= config.raw_img_width_px  # normalize x_center
         # features[:, :2] = features[:, :2] * 2 - 1  # center around 0
         features[:, 2] /= config.num_ommatidia_per_eye  # normalize area
+
+        self._last_observation = features.flatten()
         return features.flatten()
 
     def _calc_delta_dist(self, fly_pos, obj_pos):
@@ -321,3 +338,41 @@ class NMFVisualTaxis(NMFCPG):
             delta_dist = 0
         self._last_dist_from_obj = dist_from_obj
         return delta_dist
+
+    def _compute_orientation_reward(self, fly_orient, fly_pos, obj_pos):
+        terminated = False
+        pitch_threshold = np.pi/2
+
+        # Termination with penalty if the fly has tipped over
+        if abs(fly_orient[2]) > pitch_threshold: #### which is pitch???
+            reward = -200
+            terminated = True
+            return reward, terminated
+
+        dist_from_obj = np.linalg.norm(fly_pos - obj_pos)
+        vec_fly = np.array([np.cos(fly_orient[0]+np.pi/2),np.sin(fly_orient[0]+np.pi/2)])
+        vec_obj = np.array((1/dist_from_obj)*(obj_pos[:2]-fly_pos[:2]))
+        cosangle = np.dot(vec_obj, vec_fly)
+
+        # Termination if object out of field of view
+        if cosangle < (-1/np.sqrt(2)):
+            terminated = True
+            reward = -1
+        elif self._last_cosangle is not None:
+            if cosangle>self._last_cosangle:
+                reward = abs(cosangle)
+            else:
+                reward = cosangle
+        else:
+            reward = 0
+        self._last_cosangle = cosangle
+        
+        # elif self._last_cosangle is not None:
+        #     reward = 10*(cosangle-self._last_cosangle)
+        # else:
+        #     reward = 0
+        # self._last_cosangle = cosangle
+
+        return reward, terminated
+        
+
