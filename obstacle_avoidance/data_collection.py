@@ -16,6 +16,7 @@ save_path = "../data"
 if not os.path.exists(save_path):
    os.makedirs(save_path)
 
+# Define number of samples and range of starting positions for the fly
 num_pos = 10000
 steps = 2
 pos_range = [[0,30],[-12,12]]
@@ -42,5 +43,5 @@ for f in trange(num_pos):
     sim.close()
 
 dataset = np.array(dataset)
-with open(save_path+f"/dataset{num_pos}.pkl", "wb") as f:
+with open(save_path+f"/dataset{num_pos*steps}.pkl", "wb") as f:
     pickle.dump(dataset, f)
