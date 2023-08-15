@@ -7,39 +7,13 @@ import argparse
 import multiprocessing
 import time
 
+import flygym.util.cpg_controller as cpg_controller
+import flygym.util.decentralized_controller as decentralized_controller
+import flygym.util.hybrid_controller as hybrid_controller
+import flygym.arena.mujoco_arena as mujoco_arena
 from flygym.envs.nmf_mujoco import NeuroMechFlyMuJoCo, MuJoCoParameters
 from flygym.util.config import all_leg_dofs
 from flygym.state import stretched_pose
-
-from flygym.util.CPG_helpers import (
-    advancement_transfer,
-    phase_oscillator,
-    initialize_solver,
-    phase_biases_tripod_idealized,
-)
-from flygym.util.Decentralized_helpers import (
-    define_swing_stance_starts,
-    update_stepping_advancement,
-    compute_leg_scores,
-    rule1_corresponding_legs,
-    rule2_corresponding_legs,
-    rule3_corresponding_legs,
-    rule1_weight,
-    rule2_weight,
-    rule2_weight_contralateral,
-    rule3_weight,
-    rule3_weight_contralateral,
-    percent_margin,
-)
-
-from flygym.util.hybrid_helpers import get_raise_leg
-
-from flygym.arena.mujoco_arena import (
-    FlatTerrain,
-    GappedTerrain,
-    BlocksTerrain,
-    MixedTerrain,
-)
 
 import yaml
 
@@ -54,7 +28,8 @@ N_OSCILLATORS = len(LEGS)
 
 Z_SPAWN_POS = 0.5
 
-# Need longer of period as coordination is a bit worse and legs are more dragged than stepped
+# Need longer of period as coordination is a bit worse and legs are more
+# dragged than stepped
 ADHESION_OFF_DUR_DECENTRALIZED = 450
 
 COUPLING_STRENGTH = 10.0
@@ -69,13 +44,15 @@ ADHESION_GAIN = 40.0
 ####### Initialization #########
 def get_arena(arena_type, seed=ENVIRONEMENT_SEED):
     if arena_type == "flat":
-        return FlatTerrain()
+        return mujoco_arena.FlatTerrain()
     elif arena_type == "gapped":
-        return GappedTerrain()
+        return mujoco_arena.GappedTerrain()
     elif arena_type == "blocks":
-        return BlocksTerrain()
+        return mujoco_arena.BlocksTerrain()
     elif arena_type == "mixed":
-        return MixedTerrain(rand_seed=seed)  # seed for randomized block heights
+        return mujoco_arena.MixedTerrain(
+            rand_seed=seed
+        )  # seed for randomized block heights
 
 
 def get_data_block(timestep, actuated_joints):
@@ -108,7 +85,7 @@ def get_CPG_parameters(freq=7):
     target_amplitudes = np.ones(N_OSCILLATORS) * TARGET_AMPLITUDE
     rates = np.ones(N_OSCILLATORS) * AMP_RATES
 
-    phase_biases = phase_biases_tripod_idealized * 2 * np.pi
+    phase_biases = cpg_controller.phase_biases_tripod_idealized * 2 * np.pi
     coupling_weights = (np.abs(phase_biases) > 0).astype(float) * COUPLING_STRENGTH
 
     return frequencies, target_amplitudes, rates, phase_biases, coupling_weights
@@ -133,8 +110,8 @@ def run_CPG(nmf, seed, data_block, match_leg_to_joints, joint_ids, video_path=No
     # Initilize the simulation
     np.random.seed(seed)
     start_ampl = np.ones(6) * 0.2
-    solver = initialize_solver(
-        phase_oscillator,
+    solver = cpg_controller.initialize_solver(
+        cpg_controller.phase_oscillator,
         "dopri5",
         nmf.curr_time,
         N_OSCILLATORS,
@@ -166,10 +143,11 @@ def run_CPG(nmf, seed, data_block, match_leg_to_joints, joint_ids, video_path=No
                 rates,
             )
         if i > N_STABILIZATION_STEPS:
-            indices = advancement_transfer(
+            indices = cpg_controller.advancement_transfer(
                 phase, interp_step_duration, match_leg_to_joints
             )
-            # scale amplitude by interpolating between the resting values and i timestep value
+            # scale amplitude by interpolating between the resting values and i
+            # timestep value
             input_joint_angles = (
                 data_block[joint_ids, 0]
                 + (data_block[joint_ids, indices] - data_block[joint_ids, 0])
@@ -190,14 +168,14 @@ def run_CPG(nmf, seed, data_block, match_leg_to_joints, joint_ids, video_path=No
         _ = nmf.render()
 
     if video_path:
-        nmf.save_video(
-            video_path, stabilization_time=N_STABILIZATION_STEPS * nmf.timestep - 0.1
-        )
+        nmf.save_video(video_path, stabilization_time=0.3)
 
     return obs_list
 
 
-def run_hybrid(nmf, seed, data_block, match_leg_to_joints, joint_ids, raise_leg, video_path=None):
+def run_hybrid(
+    nmf, seed, data_block, match_leg_to_joints, joint_ids, raise_leg, video_path=None
+):
     nmf.reset()
     adhesion = nmf.sim_params.enable_adhesion
     num_steps = int(RUN_TIME / nmf.timestep) + N_STABILIZATION_STEPS
@@ -216,8 +194,8 @@ def run_hybrid(nmf, seed, data_block, match_leg_to_joints, joint_ids, raise_leg,
     # Initilize the simulation
     np.random.seed(seed)
     start_ampl = np.ones(6) * 0.2
-    solver = initialize_solver(
-        phase_oscillator,
+    solver = cpg_controller.initialize_solver(
+        cpg_controller.phase_oscillator,
         "dopri5",
         nmf.curr_time,
         N_OSCILLATORS,
@@ -245,7 +223,7 @@ def run_hybrid(nmf, seed, data_block, match_leg_to_joints, joint_ids, raise_leg,
         if "groundblock" in name:
             block_height = geom.pos[2] + geom.size[2]
             floor_height = min(floor_height, block_height)
-    floor_height -= 0.05 # account for small penetrations of the floor
+    floor_height -= 0.05  # account for small penetrations of the floor
 
     # detect leg with "unatural" other than tarsus 4 or 5 contacts
     leg_tarsus1T_contactsensors = [
@@ -271,7 +249,7 @@ def run_hybrid(nmf, seed, data_block, match_leg_to_joints, joint_ids, raise_leg,
     ]
 
     for i in range(num_steps):
-        if i > N_STABILIZATION_STEPS+500:
+        if i > N_STABILIZATION_STEPS + 500:
             # detect leg in gap show as blue tibia #only keep the deepest leg in the hole
             ee_z_pos = obs["end_effectors"][2::3]
             legs_in_hole = ee_z_pos < floor_height
@@ -283,7 +261,9 @@ def run_hybrid(nmf, seed, data_block, match_leg_to_joints, joint_ids, raise_leg,
                     if legs_in_hole_increment[k] > 0:
                         legs_in_hole_increment[k] -= decrease_rate
 
-            # detect leg with "unatural" other than tarsus 4 or 5 contacts and show as red Femur (Only look at force x and z (stay on top of the blocks))
+            # detect leg with "unatural" other than tarsus 4 or 5 contacts and
+            # show as red Femur (Only look at force x and z (stay on top of the
+            # blocks))
             tarsus1T_contact_force = np.mean(
                 np.abs(obs["contact_forces"][::2, leg_tarsus1T_contactsensors]),
                 axis=(0, -1),
@@ -300,9 +280,10 @@ def run_hybrid(nmf, seed, data_block, match_leg_to_joints, joint_ids, raise_leg,
                     if legs_w_proximalcontact_increment[k] > 0:
                         legs_w_proximalcontact_increment[k] -= decrease_rate
 
-        joint_angle_increment = (raise_leg.T * legs_in_hole_increment).sum(axis=1) + (
-            raise_leg.T * legs_w_proximalcontact_increment
-        ).sum(axis=1)
+        # Calculate joint angle increment
+        inc_legs_in_hole = (raise_leg.T * legs_in_hole_increment).sum(axis=1)
+        inc_prox_contact = (raise_leg.T * legs_w_proximalcontact_increment).sum(axis=1)
+        joint_angle_increment = inc_legs_in_hole + inc_prox_contact
 
         res = solver.integrate(nmf.curr_time)
         phase = res[:N_OSCILLATORS]
@@ -319,11 +300,12 @@ def run_hybrid(nmf, seed, data_block, match_leg_to_joints, joint_ids, raise_leg,
                 rates,
             )
         if i > N_STABILIZATION_STEPS:
-            indices = advancement_transfer(
+            indices = cpg_controller.advancement_transfer(
                 phase, interp_step_duration, match_leg_to_joints
             )
 
-            # scale amplitude by interpolating between the resting values and i timestep value
+            # scale amplitude by interpolating between the resting values and i
+            # timestep value
             input_joint_angles = (
                 data_block[joint_ids, 0]
                 + (data_block[joint_ids, indices] - data_block[joint_ids, 0])
@@ -337,7 +319,8 @@ def run_hybrid(nmf, seed, data_block, match_leg_to_joints, joint_ids, raise_leg,
 
         if adhesion:
             adhesion_signal = nmf.get_adhesion_vector()
-            # if leg in an hole or contacting with the wrong part of the leg remove adhesion
+            # if leg in an hole or contacting with the wrong part of the leg
+            # remove adhesion
             adhesion_signal[
                 np.logical_or(legs_in_hole, highest_proximal_contact_leg)[
                     last_tarsalseg_to_adh_id
@@ -346,17 +329,14 @@ def run_hybrid(nmf, seed, data_block, match_leg_to_joints, joint_ids, raise_leg,
         else:
             adhesion_signal = np.zeros(6)
 
-        action = {"joints": input_joint_angles,
-                  "adhesion": adhesion_signal}
+        action = {"joints": input_joint_angles, "adhesion": adhesion_signal}
 
         obs, _, _, _, _ = nmf.step(action)
         obs_list.append(obs)
         _ = nmf.render()
 
     if video_path:
-        nmf.save_video(
-            video_path, stabilization_time=N_STABILIZATION_STEPS * nmf.timestep - 0.1
-        )
+        nmf.save_video(video_path, stabilization_time=0.3)
 
     return obs_list
 
@@ -389,7 +369,8 @@ def run_Decentralized(
         ]
     )
 
-    # This serves to keep track of the advancement of each leg in the stepping sequence
+    # This serves to keep track of the advancement of each leg in the stepping
+    # sequence
     stepping_advancement = np.zeros(len(LEGS)).astype(int)
 
     leg_scores = np.zeros(len(LEGS))
@@ -402,14 +383,15 @@ def run_Decentralized(
         initiating_leg = np.argmax(leg_scores)
         within_margin_legs = (
             leg_scores[initiating_leg] - leg_scores
-            <= leg_scores[initiating_leg] * percent_margin
+            <= leg_scores[initiating_leg] * decentralized_controller.percent_margin
         )
 
         # If multiple legs are within the margin choose randomly among those legs
         if np.sum(within_margin_legs) > 1:
             initiating_leg = np.random.choice(np.where(within_margin_legs)[0])
 
-        # If the maximal score is zero or less (except for the first step after stabilisation to initate the locomotion) or if the leg is already stepping
+        # If the maximal score is zero or less (except for the first step after
+        # stabilisation to initate the locomotion) or if the leg is already stepping
         if (
             leg_scores[initiating_leg] <= 0 and not i == N_STABILIZATION_STEPS + 1
         ) or stepping_advancement[initiating_leg] > 0:
@@ -429,19 +411,23 @@ def run_Decentralized(
         nmf.render()
         obs_list.append(obs)
 
-        stepping_advancement = update_stepping_advancement(
+        stepping_advancement = decentralized_controller.update_stepping_advancement(
             stepping_advancement, LEGS, interp_step_duration
         )
 
-        rule1_contrib, rule2_contrib, rule3_contrib = compute_leg_scores(
-            rule1_corresponding_legs,
-            rule1_weight,
-            rule2_corresponding_legs,
-            rule2_weight,
-            rule2_weight_contralateral,
-            rule3_corresponding_legs,
-            rule3_weight,
-            rule3_weight_contralateral,
+        (
+            rule1_contrib,
+            rule2_contrib,
+            rule3_contrib,
+        ) = decentralized_controller.compute_leg_scores(
+            decentralized_controller.rule1_corresponding_legs,
+            decentralized_controller.rule1_weight,
+            decentralized_controller.rule2_corresponding_legs,
+            decentralized_controller.rule2_weight,
+            decentralized_controller.rule2_weight_contralateral,
+            decentralized_controller.rule3_corresponding_legs,
+            decentralized_controller.rule3_weight,
+            decentralized_controller.rule3_weight_contralateral,
             stepping_advancement,
             leg_corresp_id,
             leg_stance_starts,
@@ -454,9 +440,7 @@ def run_Decentralized(
     # Return observation list
 
     if video_path:
-        nmf.save_video(
-            video_path, stabilization_time=N_STABILIZATION_STEPS * nmf.timestep - 0.1
-        )
+        nmf.save_video(video_path, stabilization_time=0.3)
 
     return obs_list
 
@@ -537,6 +521,24 @@ def run_experiment(
         with open(decentralized_path, "wb") as f:
             pickle.dump(decentralized_obs_list, f)
 
+    # Generate hybrid points
+    hybrid_path = (
+        hybridpts_path / f"{arena_type}pts_seed{seed}_pos{pos[0]:.2f}_{pos[1]:.2f}.pkl"
+    )
+    if not hybrid_path.is_file():
+        hybrid_obs_list = run_hybrid(
+            nmf,
+            seed,
+            data_block,
+            match_leg_to_joints,
+            joint_ids,
+            raise_leg,
+            video_path=hybrid_path.with_suffix(".mp4"),
+        )
+        # Save as pkl
+        with open(hybrid_path, "wb") as f:
+            pickle.dump(hybrid_obs_list, f)
+
 ########### MAIN ############
 def main(args):
     # Parse arguments for arena type and adhesion
@@ -562,13 +564,13 @@ def main(args):
     positions[:, 0] = positions[:, 0] * max_x - shift_x
     positions[:, 1] = positions[:, 1] * max_y - shift_y
 
-
-    internal_seeds = [42, 33, 0, 100, 99, 56, 28, 7, 21, 13]
+    internal_seeds = list(range(20))
     assert args.n_exp <= len(internal_seeds), "Not enough internal seeds defined"
     internal_seeds = internal_seeds[: args.n_exp]
 
-    # Initialize simulation but with flat terrain at the beginning to define the swing and stance starts
-    # Set high actuator kp to be able to overcome obstacles
+    # Initialize simulation but with flat terrain at the beginning to define
+    # the swing and stance starts. Set high actuator kp to be able to overcome
+    # obstacles
     sim_params = MuJoCoParameters(
         timestep=1e-4,
         render_mode="saved",
@@ -583,18 +585,19 @@ def main(args):
         actuated_joints=all_leg_dofs,
     )
 
-    #save metadata to yaml
-    metadata = {"run_time": RUN_TIME,
-                "n_stabilization_steps": N_STABILIZATION_STEPS,
-                "coupling_strength": COUPLING_STRENGTH,
-                "amp_rates": AMP_RATES,
-                "target_amplitude": TARGET_AMPLITUDE,
-                "legs": LEGS,
-                "n_oscillators": N_OSCILLATORS,
-                "adhesion_off_duration_decent": ADHESION_OFF_DUR_DECENTRALIZED,
-                "adhesion_gain": ADHESION_GAIN,
-                # "sim_params": nmf.sim_params,
-                }
+    # save metadata to yaml
+    metadata = {
+        "run_time": RUN_TIME,
+        "n_stabilization_steps": N_STABILIZATION_STEPS,
+        "coupling_strength": COUPLING_STRENGTH,
+        "amp_rates": AMP_RATES,
+        "target_amplitude": TARGET_AMPLITUDE,
+        "legs": LEGS,
+        "n_oscillators": N_OSCILLATORS,
+        "adhesion_off_duration_decent": ADHESION_OFF_DUR_DECENTRALIZED,
+        "adhesion_gain": ADHESION_GAIN,
+        # "sim_params": nmf.sim_params,
+    }
     metadata_path = Path(f"Data_points/{arena_type}_metadata.yaml")
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
     with open(metadata_path, "w") as f:
@@ -606,12 +609,17 @@ def main(args):
     )
 
     # Get stance and swing starts only once as this wont change
-    leg_swing_starts, leg_stance_starts, _, _ = define_swing_stance_starts(
+    (
+        leg_swing_starts,
+        leg_stance_starts,
+        _,
+        _,
+    ) = decentralized_controller.define_swing_stance_starts(
         nmf, data_block, use_adhesion=adhesion, n_steps_stabil=N_STABILIZATION_STEPS
     )
 
     # Get the joint angles leading to a leg raise in each leg
-    raise_leg = get_raise_leg(nmf)
+    raise_leg = hybrid_controller.get_raise_leg(nmf)
 
     # Create folder to save data points
     CPGpts_path = Path(
@@ -636,7 +644,7 @@ def main(args):
     start_exps = time.time()
     print("Starting experiments")
     # Parallelize the experiment
-    if args.parallel:
+    if args.n_procs > 1:
         task_configuration = [
             (
                 seed,
@@ -687,9 +695,7 @@ if __name__ == "__main__":
     args.add_argument(
         "--n_exp", type=int, default=10, help="Number of experiments to run"
     )
-    args.add_argument(
-        "--parallel", action="store_true", help="Run experiments in parallel"
-    )
+    args.add_argument("--n_procs", type=int, default=1, help="Number of processes")
     args = args.parse_args()
 
     main(args)
