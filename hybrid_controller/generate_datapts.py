@@ -496,6 +496,29 @@ def run_experiment(
         with open(CPG_path, "wb") as f:
             pickle.dump(CPG_obs_list, f)
 
+    arena = get_arena(arena_type)
+    nmf = NeuroMechFlyMuJoCo(**nmf_params, arena=arena)
+    # Generate hybrid points
+    hybrid_path = (
+            hybridpts_path
+            / f"{arena_type}pts_seed{seed}_pos{pos[0]:.2f}_{pos[1]:.2f}.pkl"
+    )
+    if not hybrid_path.is_file():
+        hybrid_obs_list = run_hybrid(
+            nmf,
+            seed,
+            data_block,
+            match_leg_to_joints,
+            joint_ids,
+            raise_leg,
+            video_path=hybrid_path.with_suffix(".mp4"),
+        )
+        # Save as pkl
+        with open(hybrid_path, "wb") as f:
+            pickle.dump(hybrid_obs_list, f)
+
+    arena = get_arena(arena_type)
+    nmf = NeuroMechFlyMuJoCo(**nmf_params, arena=arena)
     # Generate Decentralized points
     decentralized_path = (
         decentralizedpts_path
@@ -513,25 +536,6 @@ def run_experiment(
         # Save as pkl
         with open(decentralized_path, "wb") as f:
             pickle.dump(decentralized_obs_list, f)
-
-    # Generate hybrid points
-    hybrid_path = (
-        hybridpts_path
-        / f"{arena_type}pts_seed{seed}_pos{pos[0]:.2f}_{pos[1]:.2f}.pkl"
-    )
-    if not hybrid_path.is_file():
-        hybrid_obs_list = run_hybrid(
-            nmf,
-            seed,
-            data_block,
-            match_leg_to_joints,
-            joint_ids,
-            raise_leg,
-            video_path=hybrid_path.with_suffix(".mp4"),
-        )
-        # Save as pkl
-        with open(hybrid_path, "wb") as f:
-            pickle.dump(hybrid_obs_list, f)
 
 ########### MAIN ############
 def main(args):
