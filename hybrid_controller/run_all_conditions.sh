@@ -4,14 +4,15 @@ parallelize=true
 # ...do something interesting...
 if [ "$parallelize" = true ] ; then
     echo "Running all arenas with adhesion [PARALLEL]"
-    python generate_datapts.py --arena flat --adhesion --n_procs 2 --n_exp 3
+    python generate_datapts.py --arena flat --adhesion --n_procs 4 --n_exp 5
     echo "1/4"
-    python generate_datapts.py --arena gapped --adhesion --n_procs 2 --n_exp 3
+    python generate_datapts.py --arena gapped --adhesion --n_procs 4 --n_exp 5
     echo "2/4"
-    python generate_datapts.py --arena blocks --adhesion --n_procs 2 --n_exp 3
+    python generate_datapts.py --arena blocks --adhesion --n_procs 4 --n_exp 5
     echo "3/4"
-    python generate_datapts.py --arena mixed --adhesion  --n_procs 2 --n_exp 3
+    python generate_datapts.py --arena mixed --adhesion  --n_procs 4 --n_exp 5
     echo "4/4"
+
 <<com
     echo "Running all arenas without adhesion"
     python generate_datapts.py --arena flat --n_procs 2

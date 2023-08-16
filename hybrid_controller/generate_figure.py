@@ -34,13 +34,14 @@ for controller, terrain in conditions:
             print(f"Path {path} does not exist")
             continue
         all_pkl = list(path.glob("*.pkl"))
-        assert len(all_pkl) > 1, f"Path {path} does not contain any pkl file"
+        assert len(all_pkl) > 0, f"Path {path} does not contain any pkl file"
         data_pts = []
         for pkl_file in all_pkl:
             with open(pkl_file, "rb") as f:
                 obs_list = pickle.load(f)
 
-            data_pts.append(obs_list[-1]["fly"][0][0] - obs_list[0]["fly"][0][0])
+            data_pts.append(np.linalg.norm(obs_list[-1]["fly"][0][:2] -
+                                           obs_list[0]["fly"][0][:2]))
 
         all_data_pts.append(data_pts)
 

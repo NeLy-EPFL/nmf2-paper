@@ -30,7 +30,7 @@ Z_SPAWN_POS = 0.5
 
 # Need longer of period as coordination is a bit worse and legs are more
 # dragged than stepped
-ADHESION_OFF_DUR_DECENTRALIZED = 450
+ADHESION_OFF_DUR = 0.03
 
 COUPLING_STRENGTH = 10.0
 AMP_RATES = 20.0
@@ -168,7 +168,7 @@ def run_CPG(nmf, seed, data_block, match_leg_to_joints, joint_ids, video_path=No
         _ = nmf.render()
 
     if video_path:
-        nmf.save_video(video_path, stabilization_time=0.3)
+        nmf.save_video(video_path, stabilization_time=0.0)
 
     return obs_list
 
@@ -215,31 +215,20 @@ def run_hybrid(
     legs_in_hole = [False] * 6
     legs_in_hole_increment = np.zeros(6)
 
-    floor_height = np.inf
-    # Lowest point in the walking parts of the floor
-    for i_g in range(nmf.physics.model.ngeom):
-        geom = nmf.physics.model.geom(i_g)
-        name = geom.name
-        if "groundblock" in name:
-            block_height = geom.pos[2] + geom.size[2]
-            floor_height = min(floor_height, block_height)
-    floor_height -= 0.05  # account for small penetrations of the floor
-
     # detect leg with "unatural" other than tarsus 4 or 5 contacts
     leg_tarsus1T_contactsensors = [
-        [
-            i
-            for i, cs in enumerate(nmf.contact_sensor_placements)
-            if tarsal_seg[:2] in cs and ("Tibia" in cs or "Tarsus1" in cs)
-        ]
-        for tarsal_seg in nmf.last_tarsalseg_names
-    ]
-    force_threshold = 5.0
+        [i for i, cs in enumerate(nmf.contact_sensor_placements)
+         if tarsal_seg[:2] in cs and ("Tibia" in cs or "Tarsus1" in cs)]
+        for tarsal_seg in nmf.last_tarsalseg_names]
+    force_threshold = -1.0
     highest_proximal_contact_leg = [False] * 6
     legs_w_proximalcontact_increment = np.zeros(6)
 
-    increase_rate = 0.1
-    decrease_rate = 0.05
+    increase_rate_stumble = 0.1
+    decrease_rate_stumble = 0.07
+
+    increase_rate_hole = 0.01
+    decrease_rate_hole = 0.009
 
     last_tarsalseg_to_adh_id = [
         i
@@ -252,33 +241,35 @@ def run_hybrid(
         if i > N_STABILIZATION_STEPS + 500:
             # detect leg in gap show as blue tibia #only keep the deepest leg in the hole
             ee_z_pos = obs["end_effectors"][2::3]
-            legs_in_hole = ee_z_pos < floor_height
-            legs_in_hole = np.logical_and(legs_in_hole, ee_z_pos == np.min(ee_z_pos))
+            leg_to_thorax_zdistance = obs["fly"][0][2] - ee_z_pos
+            legs_in_hole = leg_to_thorax_zdistance > np.median(
+                leg_to_thorax_zdistance) + 0.1
+            legs_in_hole = np.logical_and(legs_in_hole,
+                                          leg_to_thorax_zdistance == np.max(
+                                              leg_to_thorax_zdistance))
+            # legs_in_hole = np.zeros(6, dtype=bool)
             for k, tarsal_seg in enumerate(nmf.last_tarsalseg_names):
                 if legs_in_hole[k]:
-                    legs_in_hole_increment[k] += increase_rate
+                    legs_in_hole_increment[k] += increase_rate_hole
                 else:
                     if legs_in_hole_increment[k] > 0:
-                        legs_in_hole_increment[k] -= decrease_rate
+                        legs_in_hole_increment[k] -= decrease_rate_hole
 
-            # detect leg with "unatural" other than tarsus 4 or 5 contacts and
-            # show as red Femur (Only look at force x and z (stay on top of the
-            # blocks))
-            tarsus1T_contact_force = np.mean(
-                np.abs(obs["contact_forces"][::2, leg_tarsus1T_contactsensors]),
-                axis=(0, -1),
-            )
+            # detect leg with "unatural" other than tarsus 2, 3, 4 or 5 contacts and show as red Femur (Only look at force along negative x)
+            tarsus12T_contact_force = np.min(
+                obs["contact_forces"][0, leg_tarsus1T_contactsensors]
+                , axis=1)
             # look for the highest force
             highest_proximal_contact_leg = np.logical_and(
-                tarsus1T_contact_force > force_threshold,
-                max(tarsus1T_contact_force) == tarsus1T_contact_force,
-            )
+                tarsus12T_contact_force < force_threshold,
+                min(tarsus12T_contact_force) == tarsus12T_contact_force)
             for k, tarsal_seg in enumerate(nmf.last_tarsalseg_names):
                 if highest_proximal_contact_leg[k] and not legs_in_hole[k]:
-                    legs_w_proximalcontact_increment[k] += increase_rate
+                    legs_w_proximalcontact_increment[k] += increase_rate_stumble
                 else:
                     if legs_w_proximalcontact_increment[k] > 0:
-                        legs_w_proximalcontact_increment[k] -= decrease_rate
+                        legs_w_proximalcontact_increment[
+                            k] -= decrease_rate_stumble
 
         # Calculate joint angle increment
         inc_legs_in_hole = (raise_leg.T * legs_in_hole_increment).sum(axis=1)
@@ -336,7 +327,7 @@ def run_hybrid(
         _ = nmf.render()
 
     if video_path:
-        nmf.save_video(video_path, stabilization_time=0.3)
+        nmf.save_video(video_path, stabilization_time=0.0)
 
     return obs_list
 
@@ -347,8 +338,6 @@ def run_Decentralized(
 ):
     nmf.reset()
     adhesion = nmf.sim_params.enable_adhesion
-    if adhesion:
-        nmf.adhesion_off_duration_steps = ADHESION_OFF_DUR_DECENTRALIZED
 
     # Get data block
     num_steps = int(RUN_TIME / nmf.timestep) + N_STABILIZATION_STEPS
@@ -440,7 +429,7 @@ def run_Decentralized(
     # Return observation list
 
     if video_path:
-        nmf.save_video(video_path, stabilization_time=0.3)
+        nmf.save_video(video_path, stabilization_time=0.0)
 
     return obs_list
 
@@ -571,13 +560,16 @@ def main(args):
     # Initialize simulation but with flat terrain at the beginning to define
     # the swing and stance starts. Set high actuator kp to be able to overcome
     # obstacles
+    tmstp = 1e-4
     sim_params = MuJoCoParameters(
-        timestep=1e-4,
+        timestep=tmstp,
         render_mode="saved",
         render_playspeed=0.1,
+        render_camera="Animat/camera_left_top_zoomout",
         enable_adhesion=adhesion,
         actuator_kp=ACTUATOR_KP,
         adhesion_gain=ADHESION_GAIN,
+        adhesion_off_duration=ADHESION_OFF_DUR,
     )
     nmf = NeuroMechFlyMuJoCo(
         sim_params=sim_params,
@@ -594,7 +586,7 @@ def main(args):
         "target_amplitude": TARGET_AMPLITUDE,
         "legs": LEGS,
         "n_oscillators": N_OSCILLATORS,
-        "adhesion_off_duration_decent": ADHESION_OFF_DUR_DECENTRALIZED,
+        "adhesion_off_duration_decent": ADHESION_OFF_DUR,
         "adhesion_gain": ADHESION_GAIN,
         # "sim_params": nmf.sim_params,
     }
@@ -609,14 +601,20 @@ def main(args):
     )
 
     # Get stance and swing starts only once as this wont change
-    (
+    """(
         leg_swing_starts,
         leg_stance_starts,
         _,
         _,
     ) = decentralized_controller.define_swing_stance_starts(
         nmf, data_block, use_adhesion=adhesion, n_steps_stabil=N_STABILIZATION_STEPS
-    )
+    )"""
+
+    leg_swing_starts = {}
+    leg_stance_starts = {}
+    for leg in LEGS:
+        leg_swing_starts[leg] = 0
+        leg_stance_starts[leg] = 500
 
     # Get the joint angles leading to a leg raise in each leg
     raise_leg = hybrid_controller.get_raise_leg(nmf)
