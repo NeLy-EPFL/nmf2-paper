@@ -21,7 +21,7 @@ import yaml
 ENVIRONEMENT_SEED = 0
 
 N_STABILIZATION_STEPS = 2000
-RUN_TIME = 1.5
+RUN_TIME = 2
 
 LEGS = ["RF", "RM", "RH", "LF", "LM", "LH"]
 N_OSCILLATORS = len(LEGS)
@@ -178,7 +178,7 @@ def run_CPG(nmf, seed, data_block, match_leg_to_joints, joint_ids, video_path=No
         _ = nmf.render()
 
     if video_path:
-        nmf.save_video(video_path, stabilization_time=0.0)
+        nmf.save_video(video_path, stabilization_time=0.5)
 
     return obs_list
 
@@ -464,6 +464,8 @@ def run_experiment(
     leg_stance_starts,
     raise_leg,
 ):
+    import random
+    exp_id = random.randint(0, 100)
     arena = get_arena(arena_type)
     nmf_params["spawn_pos"] = np.array([pos[0], pos[1], Z_SPAWN_POS])
     nmf = NeuroMechFlyMuJoCo(**nmf_params, arena=arena)
@@ -575,9 +577,9 @@ def main(args):
     # Initialize simulation but with flat terrain at the beginning to define
     # the swing and stance starts. Set high actuator kp to be able to overcome
     # obstacles
-    tmstp = 1e-4
+    timestep = 1e-4
     sim_params = MuJoCoParameters(
-        timestep=tmstp,
+        timestep=timestep,
         render_mode="saved",
         render_playspeed=0.1,
         render_camera="Animat/camera_left_top_zoomout",
