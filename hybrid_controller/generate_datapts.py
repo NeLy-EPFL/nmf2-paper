@@ -26,7 +26,7 @@ RUN_TIME = 1.5
 LEGS = ["RF", "RM", "RH", "LF", "LM", "LH"]
 N_OSCILLATORS = len(LEGS)
 
-Z_SPAWN_POS = 0.5
+Z_SPAWN_POS = 0.3
 
 # Need longer of period as coordination is a bit worse and legs are more
 # dragged than stepped
@@ -35,6 +35,7 @@ ADHESION_OFF_DUR = 0.03
 COUPLING_STRENGTH = 10.0
 AMP_RATES = 20.0
 TARGET_AMPLITUDE = 1.0
+START_AMPL = 0.0
 
 ACTUATOR_KP = 30.0
 ADHESION_GAIN = 40.0
@@ -46,12 +47,21 @@ def get_arena(arena_type, seed=ENVIRONEMENT_SEED):
     if arena_type == "flat":
         return mujoco_arena.FlatTerrain()
     elif arena_type == "gapped":
-        return mujoco_arena.GappedTerrain()
+        return mujoco_arena.GappedTerrain(
+            gap_width=0.25
+        )
     elif arena_type == "blocks":
-        return mujoco_arena.BlocksTerrain()
+        return mujoco_arena.BlocksTerrain(
+            block_size=1,
+            rand_seed=seed,
+            height_range=(0.4, 0.4),
+        )
     elif arena_type == "mixed":
         return mujoco_arena.MixedTerrain(
-            rand_seed=seed
+            block_size=1,
+            rand_seed=seed,
+            height_range=(0.4, 0.4),
+            gap_width=0.2,
         )  # seed for randomized block heights
 
 
@@ -109,7 +119,7 @@ def run_CPG(nmf, seed, data_block, match_leg_to_joints, joint_ids, video_path=No
 
     # Initilize the simulation
     np.random.seed(seed)
-    start_ampl = np.ones(6) * 0.2
+    start_ampl = np.ones(6) * START_AMPL
     solver = cpg_controller.initialize_solver(
         cpg_controller.phase_oscillator,
         "dopri5",
@@ -193,7 +203,7 @@ def run_hybrid(
 
     # Initilize the simulation
     np.random.seed(seed)
-    start_ampl = np.ones(6) * 0.2
+    start_ampl = np.ones(6) * START_AMPL
     solver = cpg_controller.initialize_solver(
         cpg_controller.phase_oscillator,
         "dopri5",
@@ -224,11 +234,11 @@ def run_hybrid(
     highest_proximal_contact_leg = [False] * 6
     legs_w_proximalcontact_increment = np.zeros(6)
 
-    increase_rate_stumble = 0.1
-    decrease_rate_stumble = 0.07
+    increase_rate_stumble = 0.2
+    decrease_rate_stumble = 0.1
 
-    increase_rate_hole = 0.01
-    decrease_rate_hole = 0.009
+    increase_rate_hole = 0.02
+    decrease_rate_hole = 0.01
 
     last_tarsalseg_to_adh_id = [
         i
@@ -237,8 +247,11 @@ def run_hybrid(
         if lts[:2] == adh.name[:2]
     ]
 
+    forelegs_ids = [id for id, tarsal_seg in enumerate(nmf.last_tarsalseg_names)
+                    if tarsal_seg[:2].endswith("F")]
+
     for i in range(num_steps):
-        if i > N_STABILIZATION_STEPS + 500:
+        if i > N_STABILIZATION_STEPS:
             # detect leg in gap show as blue tibia #only keep the deepest leg in the hole
             ee_z_pos = obs["end_effectors"][2::3]
             leg_to_thorax_zdistance = obs["fly"][0][2] - ee_z_pos
@@ -247,6 +260,7 @@ def run_hybrid(
             legs_in_hole = np.logical_and(legs_in_hole,
                                           leg_to_thorax_zdistance == np.max(
                                               leg_to_thorax_zdistance))
+            legs_in_hole[forelegs_ids] = False
             # legs_in_hole = np.zeros(6, dtype=bool)
             for k, tarsal_seg in enumerate(nmf.last_tarsalseg_names):
                 if legs_in_hole[k]:
@@ -256,13 +270,14 @@ def run_hybrid(
                         legs_in_hole_increment[k] -= decrease_rate_hole
 
             # detect leg with "unatural" other than tarsus 2, 3, 4 or 5 contacts and show as red Femur (Only look at force along negative x)
-            tarsus12T_contact_force = np.min(
+            tarsus1T_contact_force = np.min(
                 obs["contact_forces"][0, leg_tarsus1T_contactsensors]
                 , axis=1)
             # look for the highest force
             highest_proximal_contact_leg = np.logical_and(
-                tarsus12T_contact_force < force_threshold,
-                min(tarsus12T_contact_force) == tarsus12T_contact_force)
+                tarsus1T_contact_force < force_threshold,
+                min(tarsus1T_contact_force) == tarsus1T_contact_force)
+            highest_proximal_contact_leg[forelegs_ids] = False
             for k, tarsal_seg in enumerate(nmf.last_tarsalseg_names):
                 if highest_proximal_contact_leg[k] and not legs_in_hole[k]:
                     legs_w_proximalcontact_increment[k] += increase_rate_stumble
@@ -570,6 +585,7 @@ def main(args):
         actuator_kp=ACTUATOR_KP,
         adhesion_gain=ADHESION_GAIN,
         adhesion_off_duration=ADHESION_OFF_DUR,
+        tarsus_damping = 0.05
     )
     nmf = NeuroMechFlyMuJoCo(
         sim_params=sim_params,
@@ -588,6 +604,7 @@ def main(args):
         "n_oscillators": N_OSCILLATORS,
         "adhesion_off_duration_decent": ADHESION_OFF_DUR,
         "adhesion_gain": ADHESION_GAIN,
+        "start_ampl":START_AMPL,
         # "sim_params": nmf.sim_params,
     }
     metadata_path = Path(f"Data_points/{arena_type}_metadata.yaml")

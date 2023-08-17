@@ -25,9 +25,9 @@ n_conditions = len(conditions)
 fig, ax = plt.subplots(figsize=(20, 10))
 
 all_data_pts = []
-all_colors = np.tile(["r", "b"], n_conditions)
+all_colors = np.tile([[1.0, 0.0, 0.0], [0.0, 0.0, 1.0]], (n_conditions, 1))
 
-for controller, terrain in conditions:
+for i, (controller, terrain) in enumerate(conditions):
     for adh in adhesion:
         path = base_path / f"{terrain}_{controller}pts_adhesion{adh}{kp_selector}"
         if not path.is_dir():
@@ -40,8 +40,8 @@ for controller, terrain in conditions:
             with open(pkl_file, "rb") as f:
                 obs_list = pickle.load(f)
 
-            data_pts.append(np.linalg.norm(obs_list[-1]["fly"][0][:2] -
-                                           obs_list[0]["fly"][0][:2]))
+            data_pts.append(np.linalg.norm(obs_list[-1]["fly"][0][0] -
+                                           obs_list[0]["fly"][0][0]))
 
         all_data_pts.append(data_pts)
 
@@ -51,11 +51,15 @@ for controller, terrain in conditions:
 
 for i in range(n_conditions):
     index = i
+    n_pts = len(all_data_pts[index])
+    color_shift = np.zeros((n_pts, 3))
+    color_shift[:, 1] = np.linspace(0.0, 1.0, n_pts)
+
     if i == 0:
         ax.scatter(
-            np.ones(len(all_data_pts[index])) * i,
+            np.ones(n_pts) * i + np.random.rand(n_pts)*0.1,
             all_data_pts[index],
-            c=all_colors[2*i],
+            c=all_colors[2*i]+color_shift,
             label="adhesion ON",
         )
         ax.boxplot(all_data_pts[index], positions=[i], widths=0.6, showfliers=False)
@@ -67,9 +71,9 @@ for i in range(n_conditions):
         )"""
     else:
         ax.scatter(
-            np.ones(len(all_data_pts[index])) * i,
+            np.ones(n_pts) * i + np.random.rand(n_pts)*0.1,
             all_data_pts[index],
-            c=all_colors[2*i],
+            c=all_colors[2*i]+color_shift,
         )
         ax.boxplot(all_data_pts[index], positions=[i], widths=0.6, showfliers=False)
         """ax.scatter(
