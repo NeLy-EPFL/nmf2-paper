@@ -11,7 +11,7 @@ from flygym.envs.nmf_mujoco import NeuroMechFlyMuJoCo, MuJoCoParameters
 from flygym.util.config import all_leg_dofs
 from flygym.state import stretched_pose
 
-from flygym.util.CPG_helpers import (
+from flygym.util.cpg_controller import (
     advancement_transfer,
     phase_oscillator,
     initialize_solver,
@@ -53,7 +53,10 @@ def get_data_block(timestep, actuated_joints):
         [i for joint in actuated_joints for i, leg in enumerate(LEGS) if leg in joint]
     )
 
-    return data_block, match_leg_to_joints, joint_ids
+    leg_swing_starts = {k:v/nmf.timestep for k,v in data["swing_stance_time"]["swing"].items()}
+    leg_stance_starts = {k:v/nmf.timestep for k,v in data["swing_stance_time"]["stance"].items()}
+
+    return data_block, match_leg_to_joints, joint_ids, leg_swing_starts, leg_stance_starts
 
 
 ####### CPG #########
@@ -71,7 +74,7 @@ def get_CPG_parameters(freq=12):
     return frequencies, target_amplitudes, rates, phase_biases, coupling_weights
 
 
-def run_CPG(nmf, data_block, match_leg_to_joints, joint_ids, slope, axis, base_path):
+def run_CPG(nmf, data_block, match_leg_to_joints, joint_ids, slope, axis, base_path, leg_swing_starts, leg_stance_starts):
 
     print(f"Running CPG gravity {slope} {axis}")
 
@@ -93,6 +96,12 @@ def run_CPG(nmf, data_block, match_leg_to_joints, joint_ids, slope, axis, base_p
 
     num_steps = int(RUN_TIME / nmf.timestep) + N_STABILIZATION_STEPS
     interp_step_duration = data_block.shape[1]
+
+    joints_to_leg = np.array([i for ts in nmf.last_tarsalseg_names for i, joint in enumerate(nmf.actuated_joints) if f"{ts[:2]}Coxa_roll" in joint])
+    stance_starts_in_order = np.array([leg_stance_starts[ts[:2]] for ts in nmf.last_tarsalseg_names])
+    swing_starts_in_order = np.array([leg_swing_starts[ts[:2]] for ts in nmf.last_tarsalseg_names])
+    indices = np.zeros_like(nmf.actuated_joints, dtype=np.int64)
+
 
     # Get CPG parameters
     (
@@ -154,7 +163,9 @@ def run_CPG(nmf, data_block, match_leg_to_joints, joint_ids, slope, axis, base_p
             input_joint_angles = data_block[joint_ids, 0]
 
         joint_angles[i, :] = input_joint_angles
-        adhesion_signal = nmf.get_adhesion_vector()
+        #adhesion_signal = nmf.get_adhesion_vector()
+        adhesion_signal = adhesion_signal = np.logical_or(indices[joints_to_leg] < swing_starts_in_order,
+                                         indices[joints_to_leg] > stance_starts_in_order)
         action = {"joints": input_joint_angles, "adhesion": adhesion_signal}
 
         try:
@@ -192,7 +203,7 @@ if __name__ == "__main__":
 
     # Initialize simulation but with flat terrain at the beginning to define the swing and stance starts
     sim_params = MuJoCoParameters(
-        timestep=1e-4, render_mode="saved", render_playspeed=0.1, enable_adhesion=True, draw_adhesion=True,
+        timestep=2e-4, render_mode="saved", render_playspeed=0.1, enable_adhesion=True, draw_adhesion=True,
         align_camera_with_gravity =True, draw_gravity=False,
     )
     nmf = NeuroMechFlyMuJoCo(
@@ -213,7 +224,7 @@ if __name__ == "__main__":
                 }
 
     # Load and process data block only once as this won't change
-    data_block, match_leg_to_joints, joint_ids = get_data_block(
+    data_block, match_leg_to_joints, joint_ids, leg_swing_starts, leg_stance_starts = get_data_block(
         nmf.timestep, nmf.actuated_joints
     )
 
@@ -238,6 +249,8 @@ if __name__ == "__main__":
             slope,
             "y",
             base_path,
+            leg_swing_starts,
+            leg_stance_starts,
         )
 
     print(f"{len(slopes_in_degrees)} experiments took {time.time()-start_exps:.2f} seconds")
