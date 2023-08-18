@@ -631,7 +631,7 @@ def main(args):
     leg_stance_starts = {}
     for leg in LEGS:
         leg_swing_starts[leg] = 0
-        leg_stance_starts[leg] = 500
+        leg_stance_starts[leg] = 500 # 256
 
     # Get the joint angles leading to a leg raise in each leg
     raise_leg = hybrid_controller.get_raise_leg(nmf)
