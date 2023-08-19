@@ -5,3 +5,5 @@ seaborn
 rasterio
 gymnasium
 stable-baselines3[extra]
+lightning
+torchmetrics
