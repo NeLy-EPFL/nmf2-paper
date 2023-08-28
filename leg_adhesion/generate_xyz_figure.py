@@ -11,7 +11,7 @@ import yaml
 # Colors for the side gravity green and getting darker as the fly is more inclined
 
 # Load the data points
-base_path = Path(f"Data_points/slope_front")
+base_path = Path(f"data/slope_front")
 # get all pkl files in the folder
 pkl_files = list(base_path.glob("*.pkl"))
 

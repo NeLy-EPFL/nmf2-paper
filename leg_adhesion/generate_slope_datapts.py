@@ -11,7 +11,7 @@ from flygym.envs.nmf_mujoco import NeuroMechFlyMuJoCo, MuJoCoParameters
 from flygym.util.config import all_leg_dofs
 from flygym.state import stretched_pose
 
-from flygym.util.CPG_helpers import (
+from flygym.util.cpg_controller import (
     advancement_transfer,
     phase_oscillator,
     initialize_solver,
@@ -218,7 +218,7 @@ if __name__ == "__main__":
     )
 
     # Create folder to save data points
-    base_path = Path(f"Data_points/slope_front")
+    base_path = Path(f"data/slope_front")
     base_path.mkdir(parents=True, exist_ok=True)
 
     # save metadata
