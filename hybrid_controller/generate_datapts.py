@@ -21,7 +21,7 @@ import yaml
 ENVIRONEMENT_SEED = 0
 
 N_STABILIZATION_STEPS = 2000
-RUN_TIME = 2
+RUN_TIME = 1
 
 LEGS = ["RF", "RM", "RH", "LF", "LM", "LH"]
 N_OSCILLATORS = len(LEGS)
@@ -182,7 +182,7 @@ def run_cpg(nmf, seed, data_block, match_leg_to_joints, joint_ids, leg_swing_sta
         _ = nmf.render()
 
     if video_path:
-        nmf.save_video(video_path, stabilization_time=0.5)
+        nmf.save_video(video_path, stabilization_time=0.2)
 
     return obs_list
 
@@ -358,7 +358,7 @@ def run_hybrid(
         _ = nmf.render()
 
     if video_path:
-        nmf.save_video(video_path, stabilization_time=0.0)
+        nmf.save_video(video_path, stabilization_time=0.2)
 
     return obs_list
 
@@ -484,7 +484,7 @@ def run_decentralized(
     # Return observation list
 
     if video_path:
-        nmf.save_video(video_path, stabilization_time=0.0)
+        nmf.save_video(video_path, stabilization_time=0.2)
 
     return obs_list
 
@@ -653,7 +653,7 @@ def main(args):
         "start_ampl":START_AMPL,
         # "sim_params": nmf.sim_params,
     }
-    metadata_path = Path(f"Data_points/{arena_type}_metadata.yaml")
+    metadata_path = Path(f"data/{arena_type}_metadata.yaml")
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
     with open(metadata_path, "w") as f:
         yaml.dump(metadata, f)
@@ -669,15 +669,15 @@ def main(args):
 
     # Create folder to save data points
     CPGpts_path = Path(
-        f"Data_points/{arena_type}_CPGpts_adhesion{adhesion}_kp{ACTUATOR_KP}"
+        f"data/{arena_type}_CPGpts_adhesion{adhesion}_kp{ACTUATOR_KP}"
     )
     CPGpts_path.mkdir(parents=True, exist_ok=True)
     decentralizedpts_path = Path(
-        f"Data_points/{arena_type}_Decentralizedpts_adhesion{adhesion}_kp{ACTUATOR_KP}"
+        f"data/{arena_type}_Decentralizedpts_adhesion{adhesion}_kp{ACTUATOR_KP}"
     )
     decentralizedpts_path.mkdir(parents=True, exist_ok=True)
     hybridpts_path = Path(
-        f"Data_points/{arena_type}_hybridpts_adhesion{adhesion}_kp{ACTUATOR_KP}"
+        f"data/{arena_type}_hybridpts_adhesion{adhesion}_kp{ACTUATOR_KP}"
     )
     hybridpts_path.mkdir(parents=True, exist_ok=True)
 
