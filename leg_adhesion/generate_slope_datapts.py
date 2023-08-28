@@ -22,10 +22,10 @@ import yaml
 
 ###### CONSTANTS ######
 CONTROLLER_SEED = 42
-N_STABILIZATION_STEPS = 2000
-GRAVITY_SWITCHING_STEP = 4000
+STABILIZATION_DUR = 0.2
+GRAVITY_SWITCHING_T = 0.4
 
-LEGS = ["RF", "RM", "RH", "LF", "LM", "LH"] 
+LEGS = ["RF", "RM", "RH", "LF", "LM", "LH"]
 N_OSCILLATORS = len(LEGS)
 
 COUPLING_STRENGTH = 10.0
@@ -33,6 +33,7 @@ AMP_RATES = 20.0
 TARGET_AMPLITUDE = 1.0
 
 RUN_TIME = 1.0
+
 
 ##### FUNCTIONS ######
 def get_data_block(timestep, actuated_joints):
@@ -53,12 +54,24 @@ def get_data_block(timestep, actuated_joints):
         [i for joint in actuated_joints for i, leg in enumerate(LEGS) if leg in joint]
     )
 
-    return data_block, match_leg_to_joints, joint_ids
+    leg_swing_starts = {
+        k: v / nmf.timestep for k, v in data["swing_stance_time"]["swing"].items()
+    }
+    leg_stance_starts = {
+        k: v / nmf.timestep for k, v in data["swing_stance_time"]["stance"].items()
+    }
+
+    return (
+        data_block,
+        match_leg_to_joints,
+        joint_ids,
+        leg_swing_starts,
+        leg_stance_starts,
+    )
 
 
 ####### CPG #########
 def get_CPG_parameters(freq=12):
-
     frequencies = np.ones(N_OSCILLATORS) * freq
 
     # For now each oscillator have the same amplitude
@@ -71,15 +84,21 @@ def get_CPG_parameters(freq=12):
     return frequencies, target_amplitudes, rates, phase_biases, coupling_weights
 
 
-def run_CPG(nmf, data_block, match_leg_to_joints, joint_ids, slope, axis, base_path):
-
+def run_CPG(
+    nmf,
+    data_block,
+    match_leg_to_joints,
+    joint_ids,
+    slope,
+    axis,
+    base_path,
+    leg_swing_starts,
+    leg_stance_starts,
+):
     print(f"Running CPG gravity {slope} {axis}")
 
     # Define save path
-    save_path = (
-        base_path
-        / f"CPG_gravity_{slope}_{axis}.pkl"
-    )
+    save_path = base_path / f"CPG_gravity_{slope}_{axis}.pkl"
     if save_path.exists():
         print(f"CPG gravity {slope} {axis} already exists")
         return
@@ -91,8 +110,27 @@ def run_CPG(nmf, data_block, match_leg_to_joints, joint_ids, slope, axis, base_p
     elif axis == "y":
         nmf.sim_params.render_camera = "Animat/camera_left"
 
-    num_steps = int(RUN_TIME / nmf.timestep) + N_STABILIZATION_STEPS
+    n_stabilization_steps = int(STABILIZATION_DUR / nmf.timestep)
+    gravity_switching_step = int(GRAVITY_SWITCHING_T / nmf.timestep)
+
+    num_steps = int(RUN_TIME / nmf.timestep) + n_stabilization_steps
     interp_step_duration = data_block.shape[1]
+
+    joints_to_leg = np.array(
+        [
+            i
+            for ts in nmf.last_tarsalseg_names
+            for i, joint in enumerate(nmf.actuated_joints)
+            if f"{ts[:2]}Coxa_roll" in joint
+        ]
+    )
+    stance_starts_in_order = np.array(
+        [leg_stance_starts[ts[:2]] for ts in nmf.last_tarsalseg_names]
+    )
+    swing_starts_in_order = np.array(
+        [leg_swing_starts[ts[:2]] for ts in nmf.last_tarsalseg_names]
+    )
+    indices = np.zeros_like(nmf.actuated_joints, dtype=np.int64)
 
     # Get CPG parameters
     (
@@ -128,7 +166,7 @@ def run_CPG(nmf, data_block, match_leg_to_joints, joint_ids, slope, axis, base_p
         phase = res[:N_OSCILLATORS]
         amp = res[N_OSCILLATORS : 2 * N_OSCILLATORS]
 
-        if i == N_STABILIZATION_STEPS:
+        if i == n_stabilization_steps:
             # Now set the amplitude to their real values
             solver.set_f_params(
                 N_OSCILLATORS,
@@ -138,13 +176,14 @@ def run_CPG(nmf, data_block, match_leg_to_joints, joint_ids, slope, axis, base_p
                 target_amplitudes,
                 rates,
             )
-        if i == GRAVITY_SWITCHING_STEP:
+        if i == gravity_switching_step:
             nmf.set_slope(slope, axis)
-        if i > N_STABILIZATION_STEPS:
+        if i > n_stabilization_steps:
             indices = advancement_transfer(
                 phase, interp_step_duration, match_leg_to_joints
             )
-            # scale amplitude by interpolating between the resting values and i timestep value
+            # scale amplitude by interpolating between the resting values and i
+            # timestep value
             input_joint_angles = (
                 data_block[joint_ids, 0]
                 + (data_block[joint_ids, indices] - data_block[joint_ids, 0])
@@ -154,7 +193,11 @@ def run_CPG(nmf, data_block, match_leg_to_joints, joint_ids, slope, axis, base_p
             input_joint_angles = data_block[joint_ids, 0]
 
         joint_angles[i, :] = input_joint_angles
-        adhesion_signal = nmf.get_adhesion_vector()
+        # adhesion_signal = nmf.get_adhesion_vector()
+        adhesion_signal = adhesion_signal = np.logical_or(
+            indices[joints_to_leg] < swing_starts_in_order,
+            indices[joints_to_leg] > stance_starts_in_order,
+        )
         action = {"joints": input_joint_angles, "adhesion": adhesion_signal}
 
         try:
@@ -165,9 +208,7 @@ def run_CPG(nmf, data_block, match_leg_to_joints, joint_ids, slope, axis, base_p
             print(e)
             break
     if video_path:
-        nmf.save_video(
-            video_path, stabilization_time=N_STABILIZATION_STEPS * nmf.timestep - 0.1
-        )
+        nmf.save_video(video_path, stabilization_time=STABILIZATION_DUR - 0.05)
 
     # Save the data
     with open(save_path, "wb") as f:
@@ -178,22 +219,17 @@ def run_CPG(nmf, data_block, match_leg_to_joints, joint_ids, slope, axis, base_p
 ########### MAIN ############
 if __name__ == "__main__":
     slopes_in_degrees = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90][::-1]
-    """base_gravity = np.array([0, 0, -9810])
-    base_gravity_norm = np.linalg.norm(base_gravity)
-    # project the base gravity vector on the slope (compute corresponding x and z components)
-    front_incline_gravity_vectors = [
-        [-base_gravity_norm * np.cos(np.deg2rad(slope)), 0, -base_gravity_norm * np.sin(np.deg2rad(slope))]
-        for slope in slopes_in_degrees
-    ]
-    side_incline_gravity_vectors = [
-        [0, -base_gravity_norm * np.cos(np.deg2rad(slope)), -base_gravity_norm * np.sin(np.deg2rad(slope))]
-        for slope in slopes_in_degrees
-    ]"""
 
-    # Initialize simulation but with flat terrain at the beginning to define the swing and stance starts
+    # Initialize simulation but with flat terrain at the beginning to define the swing
+    # and stance starts
     sim_params = MuJoCoParameters(
-        timestep=1e-4, render_mode="saved", render_playspeed=0.1, enable_adhesion=True, draw_adhesion=True,
-        align_camera_with_gravity =True, draw_gravity=False,
+        timestep=1e-4,
+        render_mode="saved",
+        render_playspeed=0.1,
+        enable_adhesion=True,
+        draw_adhesion=True,
+        align_camera_with_gravity=True,
+        draw_gravity=False,
     )
     nmf = NeuroMechFlyMuJoCo(
         sim_params=sim_params,
@@ -201,21 +237,27 @@ if __name__ == "__main__":
         actuated_joints=all_leg_dofs,
     )
 
-    metadata = {"controller_seed": CONTROLLER_SEED, "run_time": RUN_TIME,
-                "n_stabilization_steps": N_STABILIZATION_STEPS,
-                "gravity_switching_step": GRAVITY_SWITCHING_STEP,
-                "coupling_strength": COUPLING_STRENGTH,
-                "amp_rates": AMP_RATES,
-                "target_amplitude": TARGET_AMPLITUDE,
-                "legs": LEGS,
-                "n_oscillators": N_OSCILLATORS,
-                #"sim_params": nmf.sim_params,
-                }
+    metadata = {
+        "controller_seed": CONTROLLER_SEED,
+        "run_time": RUN_TIME,
+        "stabilization_dur": STABILIZATION_DUR,
+        "gravity_switching_t": GRAVITY_SWITCHING_T,
+        "coupling_strength": COUPLING_STRENGTH,
+        "amp_rates": AMP_RATES,
+        "target_amplitude": TARGET_AMPLITUDE,
+        "legs": LEGS,
+        "n_oscillators": N_OSCILLATORS,
+        # "sim_params": nmf.sim_params,
+    }
 
     # Load and process data block only once as this won't change
-    data_block, match_leg_to_joints, joint_ids = get_data_block(
-        nmf.timestep, nmf.actuated_joints
-    )
+    (
+        data_block,
+        match_leg_to_joints,
+        joint_ids,
+        leg_swing_starts,
+        leg_stance_starts,
+    ) = get_data_block(nmf.timestep, nmf.actuated_joints)
 
     # Create folder to save data points
     base_path = Path(f"data/slope_front")
@@ -238,6 +280,11 @@ if __name__ == "__main__":
             slope,
             "y",
             base_path,
+            leg_swing_starts,
+            leg_stance_starts,
         )
 
-    print(f"{len(slopes_in_degrees)} experiments took {time.time()-start_exps:.2f} seconds")
+    print(
+        f"{len(slopes_in_degrees)} experiments took "
+        f"{time.time()-start_exps:.2f} seconds"
+    )
