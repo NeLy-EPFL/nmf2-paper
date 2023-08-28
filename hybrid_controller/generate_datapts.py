@@ -420,6 +420,13 @@ def run_decentralized(
             leg_scores[initiating_leg] - leg_scores
             <= leg_scores[initiating_leg] * decentralized_controller.percent_margin
         )
+        if i == N_STABILIZATION_STEPS + 1:
+            # Will not start with the hindlegs => remove them from the within margin legs
+            for l in LEGS:
+                if "H" in l:
+                    within_margin_legs[leg_corresp_id[l]] = False
+            print(within_margin_legs)
+
 
         # If multiple legs are within the margin choose randomly among those legs
         if np.sum(within_margin_legs) > 1:
