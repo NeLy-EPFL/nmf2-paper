@@ -19,8 +19,8 @@ pkl_files = list(base_path.glob("*.pkl"))
 yml_path = base_path / "metadata.yml"
 with open(yml_path, "r") as f:
     metadata = yaml.safe_load(f)
-n_stabilization_steps = metadata["n_stabilization_steps"]
-gravity_switching_step = metadata["gravity_switching_step"]
+n_stabilization_steps = int(metadata["stabilization_dur"] / metadata["timestep"])
+gravity_switching_step = int(metadata["gravity_switching_t"] / metadata["timestep"])
 
 xyz_positions_list = []
 xyz_positions_list_rotated = []
@@ -122,20 +122,21 @@ for coord1, coord2 in [["x", "y"], ["x", "z"], ["y", "z"]]:
             continue
         color = base_color * (1 - i / len(slope_vector))
         axs[0].plot(
-            coord1_values[i][5000:10000],
-            coord2_values[i][5000:10000],
+            coord1_values[i][2000:],
+            coord2_values[i][2000:],
             label=f"{slope}, {rotation_axis}",
             color=color,
         )
         axs[1].plot(
-            coord1_values_rotated[i][5000:10000],
-            coord2_values_rotated[i][5000:10000],
+            coord1_values_rotated[i][2000:],
+            coord2_values_rotated[i][2000:],
             label=f"{slope}, {rotation_axis}",
             color=color,
         )
 
     # No labels on ax 0
-    print(f"Length after 5000 steps: {coord1_values[0][5000:].size} steps")
+    print(f"Length after {2000} steps: "
+          f"{coord1_values[0][2000:].size} steps")
 
     axs[0].set_title("Original")
     axs[0].set_xlabel(f"{coord1} position (mm)")

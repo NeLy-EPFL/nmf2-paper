@@ -39,6 +39,8 @@ for deg in slope_degrees:
             fontFace=cv2.FONT_HERSHEY_DUPLEX,
             fontScale=1,
             color=(0, 0, 0),
+            lineType=cv2.LINE_AA,
+            thickness=1,
         )
         cv2.putText(
             frame,
@@ -47,6 +49,8 @@ for deg in slope_degrees:
             fontFace=cv2.FONT_HERSHEY_DUPLEX,
             fontScale=0.5,
             color=(0, 0, 0),
+            lineType=cv2.LINE_AA,
+            thickness=1,
         )
 
         frames_all.append(frame)

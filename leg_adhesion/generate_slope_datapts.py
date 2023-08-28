@@ -32,7 +32,7 @@ COUPLING_STRENGTH = 10.0
 AMP_RATES = 20.0
 TARGET_AMPLITUDE = 1.0
 
-RUN_TIME = 1.0
+RUN_TIME = 0.5 + 0.2
 
 
 ##### FUNCTIONS ######
@@ -247,6 +247,7 @@ if __name__ == "__main__":
         "target_amplitude": TARGET_AMPLITUDE,
         "legs": LEGS,
         "n_oscillators": N_OSCILLATORS,
+        "timestep": nmf.timestep,
         # "sim_params": nmf.sim_params,
     }
 
