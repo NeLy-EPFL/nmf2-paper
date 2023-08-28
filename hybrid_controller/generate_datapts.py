@@ -425,7 +425,6 @@ def run_decentralized(
             for l in LEGS:
                 if "H" in l:
                     within_margin_legs[leg_corresp_id[l]] = False
-            print(within_margin_legs)
 
 
         # If multiple legs are within the margin choose randomly among those legs
