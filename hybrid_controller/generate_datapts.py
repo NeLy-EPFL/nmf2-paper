@@ -48,15 +48,14 @@ def get_arena(arena_type, seed=ENVIRONEMENT_SEED):
     if arena_type == "flat":
         return mujoco_arena.FlatTerrain()
     elif arena_type == "gapped":
-        return mujoco_arena.GappedTerrain(
-        )
+        return mujoco_arena.GappedTerrain(gap_width=0.5)
     elif arena_type == "blocks":
         return mujoco_arena.BlocksTerrain(
             rand_seed=seed,
         )
     elif arena_type == "mixed":
         return mujoco_arena.MixedTerrain(
-            rand_seed=seed,
+            gap_width=0.5, rand_seed=seed,
         )  # seed for randomized block heights
 
 
