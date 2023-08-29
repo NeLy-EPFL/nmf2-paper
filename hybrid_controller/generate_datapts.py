@@ -21,7 +21,7 @@ import yaml
 ENVIRONEMENT_SEED = 0
 
 N_STABILIZATION_STEPS = 2000
-RUN_TIME = 1.5
+RUN_TIME = 1
 
 LEGS = ["RF", "RM", "RH", "LF", "LM", "LH"]
 N_OSCILLATORS = len(LEGS)
@@ -48,15 +48,14 @@ def get_arena(arena_type, seed=ENVIRONEMENT_SEED):
     if arena_type == "flat":
         return mujoco_arena.FlatTerrain()
     elif arena_type == "gapped":
-        return mujoco_arena.GappedTerrain(
-        )
+        return mujoco_arena.GappedTerrain(gap_width=0.5)
     elif arena_type == "blocks":
         return mujoco_arena.BlocksTerrain(
             rand_seed=seed,
         )
     elif arena_type == "mixed":
         return mujoco_arena.MixedTerrain(
-            rand_seed=seed,
+            gap_width=0.5, rand_seed=seed,
         )  # seed for randomized block heights
 
 
@@ -182,7 +181,7 @@ def run_cpg(nmf, seed, data_block, match_leg_to_joints, joint_ids, leg_swing_sta
         _ = nmf.render()
 
     if video_path:
-        nmf.save_video(video_path, stabilization_time=0.0)
+        nmf.save_video(video_path, stabilization_time=0.2)
 
     return obs_list
 
@@ -358,7 +357,7 @@ def run_hybrid(
         _ = nmf.render()
 
     if video_path:
-        nmf.save_video(video_path, stabilization_time=0.0)
+        nmf.save_video(video_path, stabilization_time=0.2)
 
     return obs_list
 
@@ -420,6 +419,12 @@ def run_decentralized(
             leg_scores[initiating_leg] - leg_scores
             <= leg_scores[initiating_leg] * decentralized_controller.percent_margin
         )
+        if i == N_STABILIZATION_STEPS + 1:
+            # Will not start with the hindlegs => remove them from the within margin legs
+            for l in LEGS:
+                if "H" in l:
+                    within_margin_legs[leg_corresp_id[l]] = False
+
 
         # If multiple legs are within the margin choose randomly among those legs
         if np.sum(within_margin_legs) > 1:
@@ -478,7 +483,7 @@ def run_decentralized(
     # Return observation list
 
     if video_path:
-        nmf.save_video(video_path, stabilization_time=0.0)
+        nmf.save_video(video_path, stabilization_time=0.2)
 
     return obs_list
 
@@ -498,6 +503,8 @@ def run_experiment(
     leg_stance_starts,
     raise_leg,
 ):
+    import random
+    exp_id = random.randint(0, 100)
     arena = get_arena(arena_type)
     nmf_params["spawn_pos"] = np.array([pos[0], pos[1], Z_SPAWN_POS])
     nmf = NeuroMechFlyMuJoCo(**nmf_params, arena=arena)
@@ -613,9 +620,9 @@ def main(args):
     # Initialize simulation but with flat terrain at the beginning to define
     # the swing and stance starts. Set high actuator kp to be able to overcome
     # obstacles
-    tmstp = 1e-4
+    timestep = 1e-4
     sim_params = MuJoCoParameters(
-        timestep=tmstp,
+        timestep=timestep,
         render_mode="saved",
         render_playspeed=0.1,
         render_camera="Animat/camera_left_top_zoomout",
@@ -645,7 +652,7 @@ def main(args):
         "start_ampl":START_AMPL,
         # "sim_params": nmf.sim_params,
     }
-    metadata_path = Path(f"Data_points/{arena_type}_metadata.yaml")
+    metadata_path = Path(f"data/{arena_type}_metadata.yaml")
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
     with open(metadata_path, "w") as f:
         yaml.dump(metadata, f)
@@ -661,15 +668,15 @@ def main(args):
 
     # Create folder to save data points
     CPGpts_path = Path(
-        f"Data_points/{arena_type}_CPGpts_adhesion{adhesion}_kp{ACTUATOR_KP}"
+        f"data/{arena_type}_CPGpts_adhesion{adhesion}_kp{ACTUATOR_KP}"
     )
     CPGpts_path.mkdir(parents=True, exist_ok=True)
     decentralizedpts_path = Path(
-        f"Data_points/{arena_type}_Decentralizedpts_adhesion{adhesion}_kp{ACTUATOR_KP}"
+        f"data/{arena_type}_Decentralizedpts_adhesion{adhesion}_kp{ACTUATOR_KP}"
     )
     decentralizedpts_path.mkdir(parents=True, exist_ok=True)
     hybridpts_path = Path(
-        f"Data_points/{arena_type}_hybridpts_adhesion{adhesion}_kp{ACTUATOR_KP}"
+        f"data/{arena_type}_hybridpts_adhesion{adhesion}_kp{ACTUATOR_KP}"
     )
     hybridpts_path.mkdir(parents=True, exist_ok=True)
 
