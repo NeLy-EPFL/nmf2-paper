@@ -213,21 +213,24 @@ class NMFNavigation(TurningController):
         #  - scalar probability that there is an object in view, [0, 1]
         #  - 2D vector of mean odor intensity on each side, norm. to [0, 1]
         #  - 2D vector of current oscillator amp. on each side, norm. to [0, 1]
-        self.action_space = gym.spaces.Box(low=-1, high=1, shape=(2,))
-        self.observation_space = gym.spaces.Box(low=0, high=1, shape=(7,))
+        self.action_space = gym.spaces.Box(low=-1, high=1, shape=(1,))
+        self.observation_space = gym.spaces.Box(low=0, high=1, shape=(6,))
 
         self._last_fly_tgt_dist = np.linalg.norm(
             np.zeros(2) - self.arena.odor_source[0, :2]
         )
-        self._last_action = np.zeros((2,))
+        self._last_turning_signal = 0
 
     def update_retina_graphs(self, intensities):
         intensities = torch.tensor(intensities, dtype=torch.float32).sum(axis=-1) / 255
+        intensities += np.random.normal(scale=0.05, size=intensities.shape).astype(np.float32)
         intensities = intensities.to(self.device)
         for i in range(2):
             self.ommatidia_graphs[i].x = intensities[i, :]
 
-    def step(self, amplitude):
+    def step(self, turning_signal):
+        # turning_signal = turning_signal[0]
+        amplitude = np.array([1, -1]) * turning_signal
         try:
             obstacle_contact_counter = 0
             for i in range(self.num_substeps):
@@ -252,12 +255,18 @@ class NMFNavigation(TurningController):
         pos_pred, obj_prob = self.vision_model(*self.ommatidia_graphs)
         pos_pred = pos_pred.detach().numpy().squeeze() / self.distance_threshold
         pos_pred = np.clip(pos_pred, 0, 1)
-        obj_prob = obj_prob.detach().numpy()
+        if obj_prob < 0.5:
+            pos_pred = np.ones((2,))
+        obj_prob = obj_prob.detach().numpy().squeeze()
         odor_intensity = raw_obs["odor_intensity"][0, :].reshape(2, 2).mean(axis=0)
         odor_intensity /= self.arena.peak_odor_intensity[0, 0]
-        last_action = self._last_action / 2 + 0.5
-        obs = np.concatenate(
-            [pos_pred, obj_prob, odor_intensity, last_action], dtype=np.float32
+        last_action = self._last_turning_signal / 2 + 0.5
+        # print(f"last_action: {last_action}")
+        # print(f"pos_pred: {pos_pred}")
+        # print(f"obj_prob: {obj_prob}")
+        # print(f"odor_intensity: {odor_intensity}")
+        obs = np.array(
+            [*pos_pred, obj_prob, *odor_intensity, last_action], dtype=np.float32
         )
 
         # Calculate reward
@@ -294,7 +303,9 @@ class NMFNavigation(TurningController):
             info["state_desc"] = "seeking"
 
         # apply penalty for rapid turning
-        action_diff = np.abs(amplitude - self._last_action).sum() / 20
+        action_diff = np.abs(turning_signal[0] - self._last_turning_signal) * 0.5
+        # print(turning_signal, self._last_turning_signal)
+        reward -= action_diff
 
         info["distance_reward"] = distance_reward
         info["has_collision"] = has_collision
@@ -310,16 +321,16 @@ class NMFNavigation(TurningController):
             if truncated:
                 print("truncated")
 
-        self._last_action = amplitude
+        self._last_turning_signal = turning_signal[0]
         return obs, reward, terminated, truncated, info
 
     def reset(self, seed=0):
         super().reset()
-        obs = np.array([0, 0, 0, 0, 0, 0.5, 0.5], dtype="float32")
+        obs = np.array([1, 1, 1, 0, 0, 0], dtype="float32")
         self._last_fly_tgt_dist = np.linalg.norm(
             np.zeros(2) - self.arena.odor_source[0, :2]
         )
-        self._last_action = np.zeros((2,))
+        self._last_turning_signal = 0
         if self.debug_mode:
             print("resetting environment")
         return obs, {"state_desc": "reset"}
