@@ -14,7 +14,8 @@ from flygym.envs.nmf_mujoco import MuJoCoParameters
 from flygym.arena import BaseArena
 from flygym.util.turning_controller import TurningController
 from flygym.util.data import color_cycle_rgb
-from flygym.util.config import num_ommatidia_per_eye
+import flygym.util.config as config
+import flygym.util.vision as vision
 
 
 class ObstacleOdorArena(BaseArena):
@@ -62,12 +63,9 @@ class ObstacleOdorArena(BaseArena):
 
         # Add markers at the odor sources
         if marker_colors is None:
-            marker_colors = []
+            rgb = np.array(color_cycle_rgb[1]) / 255
+            marker_colors = [(*rgb, 1)] * self.num_odor_sources
             num_odor_sources = self.odor_source.shape[0]
-            for i in range(num_odor_sources):
-                rgb = np.array(color_cycle_rgb[i % num_odor_sources]) / 255
-                rgba = (*rgb, 1)
-                marker_colors.append(rgba)
         for i, (pos, rgba) in enumerate(zip(self.odor_source, marker_colors)):
             pos = list(pos)
             pos[2] += z_offset
@@ -117,7 +115,7 @@ class ObstacleOdorArena(BaseArena):
             "camera",
             name="side_cam",
             mode="fixed",
-            pos=(12.5, -25, 10),
+            pos=(odor_source[0, 0] / 2, -25, 10),
             euler=(np.deg2rad(75), 0, 0),
             fovy=50,
         )
@@ -166,12 +164,9 @@ class NMFNavigation(TurningController):
     def __init__(
         self,
         arena,
-        vision_model,
-        ommatidia_graph,
-        device=torch.device("cpu"),
+        obj_threshold=50,
         decision_dt=0.05,
         n_stabilisation_dur=0.3,
-        distance_threshold=15,
         max_time=5,
         test_mode=False,
         debug_mode=False,
@@ -198,13 +193,10 @@ class NMFNavigation(TurningController):
             **kwargs,
         )
 
-        self.device = device
-        self.ommatidia_graphs = [ommatidia_graph.clone(), ommatidia_graph.clone()]
-        self.vision_model = vision_model.to(self.device)
         self.max_time = max_time
         self.arena = arena
         self.num_substeps = int(decision_dt / self.timestep)
-        self.distance_threshold = distance_threshold
+        self.obj_threshold = obj_threshold
 
         # Override spaces
         # action space: 2D vector of amplitude and phase for oscillators on each side
@@ -214,19 +206,18 @@ class NMFNavigation(TurningController):
         #  - 2D vector of mean odor intensity on each side, norm. to [0, 1]
         #  - 2D vector of current oscillator amp. on each side, norm. to [0, 1]
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=(1,))
-        self.observation_space = gym.spaces.Box(low=0, high=1, shape=(6,))
+        self.observation_space = gym.spaces.Box(low=0, high=1, shape=(9,))
 
         self._last_fly_tgt_dist = np.linalg.norm(
             np.zeros(2) - self.arena.odor_source[0, :2]
         )
         self._last_turning_signal = 0
 
-    def update_retina_graphs(self, intensities):
-        intensities = torch.tensor(intensities, dtype=torch.float32).sum(axis=-1) / 255
-        intensities += np.random.normal(scale=0.05, size=intensities.shape).astype(np.float32)
-        intensities = intensities.to(self.device)
-        for i in range(2):
-            self.ommatidia_graphs[i].x = intensities[i, :]
+        # Compute x-y position of each ommatidium
+        self.coms = np.empty((config.num_ommatidia_per_eye, 2))
+        for i in range(config.num_ommatidia_per_eye):
+            mask = vision.ommatidia_id_map == i + 1
+            self.coms[i, :] = np.argwhere(mask).mean(axis=0)
 
     def step(self, turning_signal):
         # turning_signal = turning_signal[0]
@@ -245,28 +236,18 @@ class NMFNavigation(TurningController):
             collision = obstacle_contact_counter > 20
         except PhysicsError:
             print("Physics error, resetting environment")
-            return np.zeros((7,), dtype="float32"), 0, False, True, {}
+            return np.zeros((9,), dtype="float32"), 0, False, True, {}
 
         # Check if visual inputs are rendered recently
-        assert abs(self.curr_time - self._last_vision_update_time) < 0.5 * self.timestep
+        assert abs(self.curr_time - self._last_vision_update_time) < 0.25 * self.timestep
 
         # Parse observations
-        self.update_retina_graphs(self.curr_visual_input)
-        pos_pred, obj_prob = self.vision_model(*self.ommatidia_graphs)
-        pos_pred = pos_pred.detach().numpy().squeeze() / self.distance_threshold
-        pos_pred = np.clip(pos_pred, 0, 1)
-        if obj_prob < 0.5:
-            pos_pred = np.ones((2,))
-        obj_prob = obj_prob.detach().numpy().squeeze()
+        visual_features = self._get_visual_features()
         odor_intensity = raw_obs["odor_intensity"][0, :].reshape(2, 2).mean(axis=0)
         odor_intensity /= self.arena.peak_odor_intensity[0, 0]
         last_action = self._last_turning_signal / 2 + 0.5
-        # print(f"last_action: {last_action}")
-        # print(f"pos_pred: {pos_pred}")
-        # print(f"obj_prob: {obj_prob}")
-        # print(f"odor_intensity: {odor_intensity}")
         obs = np.array(
-            [*pos_pred, obj_prob, *odor_intensity, last_action], dtype=np.float32
+            [*visual_features, *odor_intensity, last_action], dtype=np.float32
         )
 
         # Calculate reward
@@ -284,17 +265,17 @@ class NMFNavigation(TurningController):
                 has_collision = True
                 break
 
-        # calculate final reward
+        # calculate tentative reward
         if distance < 2:
             reward = 30
             terminated = True
             info["state_desc"] = "success"
         elif collision:
-            reward = -10
+            reward = -1
             terminated = True
             info["state_desc"] = "collision"
         elif info["flip"]:
-            reward = -10
+            reward = -5
             terminated = True
             info["state_desc"] = "flipped"
         else:
@@ -302,10 +283,20 @@ class NMFNavigation(TurningController):
             terminated = False
             info["state_desc"] = "seeking"
 
+        # penalty for too close to the cylinder
+        fly_obstacle_distance = np.linalg.norm(
+            fly_pos - self.arena.obstacle_positions[0, :]
+        )
+        obstacle_penalty = 1 - (fly_obstacle_distance - 3) / 2
+        obstacle_penalty = np.clip(obstacle_penalty, 0, 1)
+        reward -= obstacle_penalty
+
         # apply penalty for rapid turning
-        action_diff = np.abs(turning_signal[0] - self._last_turning_signal) * 0.5
+        action_diff_penalty = (
+            np.abs(turning_signal[0] - self._last_turning_signal) * 0.25
+        )
         # print(turning_signal, self._last_turning_signal)
-        reward -= action_diff
+        reward -= action_diff_penalty
 
         info["distance_reward"] = distance_reward
         info["has_collision"] = has_collision
@@ -315,7 +306,12 @@ class NMFNavigation(TurningController):
         )  # start a new episode
 
         if self.debug_mode:
-            print(f"fly_pos: {fly_pos}, reward={reward}, state={info['state_desc']}")
+            print(
+                f"fly_pos: {fly_pos}, final reward={reward}, state={info['state_desc']}"
+            )
+            print(
+                f"  dist reward={distance_reward}, obstacle penalty={obstacle_penalty}, action diff={action_diff_penalty}"
+            )
             if terminated:
                 print("terminated")
             if truncated:
@@ -326,7 +322,7 @@ class NMFNavigation(TurningController):
 
     def reset(self, seed=0):
         super().reset()
-        obs = np.array([1, 1, 1, 0, 0, 0], dtype="float32")
+        obs = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0], dtype="float32")
         self._last_fly_tgt_dist = np.linalg.norm(
             np.zeros(2) - self.arena.odor_source[0, :2]
         )
@@ -335,103 +331,21 @@ class NMFNavigation(TurningController):
             print("resetting environment")
         return obs, {"state_desc": "reset"}
 
-
-class VisualFeaturePreprocessor(pl.LightningModule):
-    def __init__(
-        self,
-        *,
-        in_channels=1,
-        conv_hidden_channels=4,
-        conv_out_channels=2,
-        linear_hidden_channels=16,
-        classification_loss_coef=0.01,
-    ):
-        super().__init__()
-        self.in_channels = in_channels
-        self.classification_loss_coef = classification_loss_coef
-
-        # Define model layers
-        self.conv1 = gnn.GCNConv(in_channels, conv_hidden_channels)
-        self.conv2 = gnn.GCNConv(conv_hidden_channels, conv_out_channels)
-        mlp_in_dim = 2 * conv_out_channels * num_ommatidia_per_eye
-        self.linear1 = nn.Linear(mlp_in_dim, linear_hidden_channels)
-        self.linear2 = nn.Linear(linear_hidden_channels, linear_hidden_channels)
-        self.linear3 = nn.Linear(linear_hidden_channels, 3)
-
-        # Define metrics
-        self._f1 = torchmetrics.classification.BinaryF1Score()
-        self._r2 = torchmetrics.R2Score()
-
-    def forward(self, left_graph, right_graph, batch_size=1):
-        conv_features_li = []
-        for graph in [left_graph, right_graph]:
-            x = self.conv1(graph.x.view(-1, 1), graph.edge_index)
-            x = F.tanh(x)
-            x = self.conv2(x, graph.edge_index)
-            x = F.tanh(x)
-            conv_features_li.append(x.view(batch_size, -1))
-        conv_features = torch.concat(conv_features_li, axis=1)
-        x = self.linear1(conv_features)
-        x = F.tanh(x)
-        x = self.linear2(x)
-        x = F.tanh(x)
-        x = self.linear3(x)
-        pos_pred = x[:, :2]
-        mask_pred = F.sigmoid(x[:, 2])
-        return pos_pred, mask_pred
-
-    def loss(self, pos_pred, mask_pred, pos_label, mask_label):
-        detection_loss = F.binary_cross_entropy(mask_pred, mask_label.float())
-        mask = (mask_label == 1) & (mask_pred > 0.5)
-        pos_loss = F.mse_loss(pos_pred[mask, :], pos_label[mask, :])
-        total_loss = pos_loss + self.classification_loss_coef * detection_loss
-        return total_loss, pos_loss, detection_loss
-
-    def get_metrics(self, pos_pred, mask_pred, pos_label, mask_label):
-        mask_pred_bin = mask_pred > 0.5
-        detection_f1 = self._f1(mask_pred_bin.int(), mask_label.int())
-        mask = mask_label.bool() & mask_pred_bin
-        if mask.sum() < 2:
-            pos_r2 = torch.tensor(torch.nan)
-        else:
-            pos_r2 = self._r2(pos_pred[mask, :].flatten(), pos_label[mask, :].flatten())
-        return pos_r2, detection_f1
-
-    def training_step(self, batch, batch_idx):
-        graphs_left = batch["graph_left"]  # this is a minibatch of graphs
-        graphs_right = batch["graph_right"]
-        pos_labels = batch["position"]
-        mask_labels = batch["object_found"]
-        batch_size = mask_labels.size(0)
-
-        pos_pred, mask_pred = self.forward(graphs_left, graphs_right, batch_size)
-        total_loss, pos_loss, detection = self.loss(
-            pos_pred, mask_pred, pos_labels, mask_labels
-        )
-
-        self.log("train_total_loss", total_loss, batch_size=batch_size)
-        self.log("train_pos_loss", pos_loss, batch_size=batch_size)
-        self.log("train_detection_loss", detection, batch_size=batch_size)
-        return total_loss
-
-    def validation_step(self, batch, batch_idx):
-        graphs_left = batch["graph_left"]  # this is a minibatch of graphs
-        graphs_right = batch["graph_right"]
-        pos_labels = batch["position"]
-        mask_labels = batch["object_found"]
-        batch_size = mask_labels.size(0)
-
-        pos_pred, mask_pred = self.forward(graphs_left, graphs_right, batch_size)
-        total_loss, pos_loss, detection = self.loss(
-            pos_pred, mask_pred, pos_labels, mask_labels
-        )
-        r2, f1 = self.get_metrics(pos_pred, mask_pred, pos_labels, mask_labels)
-
-        self.log("val_total_loss", total_loss, batch_size=batch_size)
-        self.log("val_pos_loss", pos_loss, batch_size=batch_size)
-        self.log("train_detection_loss", detection, batch_size=batch_size)
-        self.log("val_pos_r2", r2, batch_size=batch_size)
-        self.log("val_classification_f1", f1, batch_size=batch_size)
-
-    def configure_optimizers(self):
-        return optim.Adam(self.parameters(), lr=1e-3)
+    def _get_visual_features(self):
+        raw_obs = super().get_observation()
+        # features = np.full((2, 3), np.nan)  # ({L, R}, {y_center, x_center, area})
+        features = np.zeros((2, 3))
+        for i, ommatidia_readings in enumerate(raw_obs["vision"]):
+            is_obj = ommatidia_readings.max(axis=1) < self.obj_threshold
+            is_obj[
+                np.arange(is_obj.size) % 2 == 1
+            ] = False  # only use pale-type ommatidia
+            is_obj_coords = self.coms[is_obj]
+            if is_obj_coords.shape[0] > 0:
+                features[i, :2] = is_obj_coords.mean(axis=0)
+            features[i, 2] = is_obj_coords.shape[0]
+        features[:, 0] /= config.raw_img_height_px  # normalize y_center
+        features[:, 1] /= config.raw_img_width_px  # normalize x_center
+        # features[:, :2] = features[:, :2] * 2 - 1  # center around 0
+        features[:, 2] /= config.num_ommatidia_per_eye  # normalize area
+        return features.flatten()
