@@ -15,6 +15,8 @@ from flygym.envs.nmf_mujoco import NeuroMechFlyMuJoCo, MuJoCoParameters
 from flygym.util.config import all_leg_dofs
 from flygym.state import stretched_pose
 
+from dm_control.rl.control import PhysicsError
+
 import yaml
 
 ########### CONSTANTS ############
@@ -49,6 +51,7 @@ def get_arena(arena_type, seed=ENVIRONEMENT_SEED):
         return mujoco_arena.FlatTerrain()
     elif arena_type == "gapped":
         return mujoco_arena.GappedTerrain(
+            gap_width=0.5,
         )
     elif arena_type == "blocks":
         return mujoco_arena.BlocksTerrain(
@@ -56,6 +59,7 @@ def get_arena(arena_type, seed=ENVIRONEMENT_SEED):
         )
     elif arena_type == "mixed":
         return mujoco_arena.MixedTerrain(
+            gap_width=0.5,
             rand_seed=seed,
         )  # seed for randomized block heights
 
@@ -140,46 +144,50 @@ def run_cpg(nmf, seed, data_block, match_leg_to_joints, joint_ids, leg_swing_sta
     # Initalize storage
     obs_list = []
 
-    for i in range(num_steps):
-        res = solver.integrate(nmf.curr_time)
-        phase = res[:N_OSCILLATORS]
-        amp = res[N_OSCILLATORS : 2 * N_OSCILLATORS]
+    try:
+        for i in range(num_steps):
+            res = solver.integrate(nmf.curr_time)
+            phase = res[:N_OSCILLATORS]
+            amp = res[N_OSCILLATORS : 2 * N_OSCILLATORS]
 
-        if i == N_STABILIZATION_STEPS:
-            # Now set the amplitude to their real values
-            solver.set_f_params(
-                N_OSCILLATORS,
-                frequencies,
-                coupling_weights,
-                phase_biases,
-                target_amplitudes,
-                rates,
-            )
-        if i > N_STABILIZATION_STEPS:
-            indices = cpg_controller.advancement_transfer(
-                phase, interp_step_duration, match_leg_to_joints
-            )
-            # scale amplitude by interpolating between the resting values and i
-            # timestep value
-            input_joint_angles = (
-                data_block[joint_ids, 0]
-                + (data_block[joint_ids, indices] - data_block[joint_ids, 0])
-                * amp[match_leg_to_joints]
-            )
-        else:
-            input_joint_angles = data_block[joint_ids, 0]
+            if i == N_STABILIZATION_STEPS:
+                # Now set the amplitude to their real values
+                solver.set_f_params(
+                    N_OSCILLATORS,
+                    frequencies,
+                    coupling_weights,
+                    phase_biases,
+                    target_amplitudes,
+                    rates,
+                )
+            if i > N_STABILIZATION_STEPS:
+                indices = cpg_controller.advancement_transfer(
+                    phase, interp_step_duration, match_leg_to_joints
+                )
+                # scale amplitude by interpolating between the resting values and i
+                # timestep value
+                input_joint_angles = (
+                    data_block[joint_ids, 0]
+                    + (data_block[joint_ids, indices] - data_block[joint_ids, 0])
+                    * amp[match_leg_to_joints]
+                )
+            else:
+                input_joint_angles = data_block[joint_ids, 0]
 
-        if adhesion:
-            adhesion_signal = np.logical_or(indices[joints_to_leg] < swing_starts_in_order,
-                                         indices[joints_to_leg] > stance_starts_in_order)
-        else:
-            adhesion_signal = np.zeros(6)
+            if adhesion:
+                adhesion_signal = np.logical_or(indices[joints_to_leg] < swing_starts_in_order,
+                                             indices[joints_to_leg] > stance_starts_in_order)
+            else:
+                adhesion_signal = np.zeros(6)
 
-        action = {"joints": input_joint_angles, "adhesion": adhesion_signal}
+            action = {"joints": input_joint_angles, "adhesion": adhesion_signal}
 
-        obs, _, _, _, _ = nmf.step(action)
-        obs_list.append(obs)
-        _ = nmf.render()
+            obs, _, _, _, _ = nmf.step(action)
+            obs_list.append(obs)
+            _ = nmf.render()
+
+    except PhysicsError:
+        print("Simulation diverged, returning")
 
     if video_path:
         nmf.save_video(video_path, stabilization_time=0.0)
@@ -237,20 +245,21 @@ def run_hybrid(
     legs_in_hole_increment = np.zeros(6)
 
     # detect leg with "unatural" other than tarsus 4 or 5 contacts
-    leg_tarsus1T_contactsensors = [
+    leg_tarsus12T_contactsensors = [
         [i for i, cs in enumerate(nmf.contact_sensor_placements)
-         if tarsal_seg[:2] in cs and ("Tibia" in cs or "Tarsus1" in cs)]
+         if tarsal_seg[:2] in cs and (
+                     "Tibia" in cs or "Tarsus1" in cs or "Tarsus2" in cs)]
         for tarsal_seg in nmf.last_tarsalseg_names]
     force_threshold = -1.0
     proximal_contact_leg = [False] * 6
     legs_w_proximalcontact_increment = np.zeros(6)
 
     # change it to seconds so it is timestep independant
-    increase_rate_stumble = 1/5e-4*nmf.timestep #1 step every 200µs
+    increase_rate_stumble = 1/5e-4*nmf.timestep #1 step every 500µs
     decrease_rate_stumble = 1/2e-3*nmf.timestep
 
-    increase_rate_hole = 1/2.5e-3*nmf.timestep
-    decrease_rate_hole = 1/5e-3*nmf.timestep
+    increase_rate_hole = 1/1e-3*nmf.timestep
+    decrease_rate_hole = 1/2.5e-3*nmf.timestep
 
     last_tarsalseg_to_adh_id = [
         i
@@ -258,104 +267,119 @@ def run_hybrid(
         for i, lts in enumerate(nmf.last_tarsalseg_names)
         if lts[:2] == adh.name[:2]
     ]
+    try:
+        for i in range(num_steps):
+            if i > N_STABILIZATION_STEPS:
+                # detect leg in gap show as blue tibia #only keep the deepest leg in the hole
+                # detect leg in gap show as blue tibia #only keep the deepest leg in the hole
+                ee_z_pos = obs["end_effectors"][2::3]
+                leg_to_thorax_zdistance = obs["fly"][0][2] - ee_z_pos
+                # get the third furthest leg from the thorax (as tripod should be on the floor)
+                third_furthest_leg = np.sort(leg_to_thorax_zdistance)[3]
+                # print(np.sort(leg_to_thorax_zdistance))
+                legs_in_hole = np.logical_and(leg_to_thorax_zdistance > third_furthest_leg + 0.05,
+                                              leg_to_thorax_zdistance == np.max(leg_to_thorax_zdistance))
+                for k, tarsal_seg in enumerate(nmf.last_tarsalseg_names):
+                    if legs_in_hole[k]:
+                        nmf.physics.named.model.geom_rgba["Animat/"+tarsal_seg[:2]+"Tibia_visual"] = [0.0, 0.0, 1.0, 1.0]
+                        legs_in_hole_increment[k] += increase_rate_hole
+                    else:
+                        nmf.physics.named.model.geom_rgba["Animat/"+tarsal_seg[:2]+"Tibia_visual"] = nmf.base_rgba
+                        if legs_in_hole_increment[k] > 0:
+                            legs_in_hole_increment[k] -= decrease_rate_hole
 
-    forelegs_ids = [id for id, tarsal_seg in enumerate(nmf.last_tarsalseg_names)
-                    if tarsal_seg[:2].endswith("F")]
+                # detect leg with "unatural" other than tarsus 2, 3, 4 or 5 contacts and show as red Femur (Only look at force along negative x)
+                fly_orient = obs["fly_orient"]
+                fly_orient[2] = 0.0
+                fly_orient_norm = np.linalg.norm(fly_orient)
+                fly_orient_unit = fly_orient/fly_orient_norm
+                # Look for forces opposing the fly orientation (and thus progression)
+                for k, contact_sensors in enumerate(leg_tarsus12T_contactsensors):
+                    contact_forces = obs["contact_forces"][:, contact_sensors].T
+                    min_scalar_proj_contact_force = np.inf
+                    for contact_force in contact_forces:
+                        scalar_proj_force = np.dot(contact_force, fly_orient_unit) #scalar_value
+                        min_scalar_proj_contact_force = min(min_scalar_proj_contact_force, scalar_proj_force)
+                    proximal_contact_leg[k] = np.logical_and(min_scalar_proj_contact_force < force_threshold,
+                                                            np.logical_not(leg_in_stance[k]))
 
-    for i in range(num_steps):
-
-        if i > N_STABILIZATION_STEPS:
-            # detect leg in gap show as blue tibia #only keep the deepest leg in the hole
-            ee_z_pos = obs["end_effectors"][2::3]
-            leg_to_thorax_zdistance = obs["fly"][0][2] - ee_z_pos
-            legs_in_hole = leg_to_thorax_zdistance > np.median(
-                leg_to_thorax_zdistance) + 0.1
-            legs_in_hole = np.logical_and(legs_in_hole,
-                                          leg_to_thorax_zdistance == np.max(
-                                              leg_to_thorax_zdistance))
-            legs_in_hole[forelegs_ids] = False
-            # legs_in_hole = np.zeros(6, dtype=bool)
-            for k, tarsal_seg in enumerate(nmf.last_tarsalseg_names):
-                if legs_in_hole[k]:
-                    legs_in_hole_increment[k] += increase_rate_hole
-                else:
-                    if legs_in_hole_increment[k] > 0:
-                        legs_in_hole_increment[k] -= decrease_rate_hole
-
-            # detect leg with "unatural" other than tarsus 2, 3, 4 or 5 contacts and show as red Femur (Only look at force along negative x)
-            tarsus1T_contact_force = np.min(
-                obs["contact_forces"][0, leg_tarsus1T_contactsensors]
-                , axis=1)
-            # look for the highest force
-            proximal_contact_leg = np.logical_and(
-                tarsus1T_contact_force < force_threshold, np.logical_not(leg_in_stance))
-            proximal_contact_leg = tarsus1T_contact_force < force_threshold
-            proximal_contact_leg[forelegs_ids] = False
-            for k, tarsal_seg in enumerate(nmf.last_tarsalseg_names):
-                if proximal_contact_leg[k] and not legs_in_hole[k]:
-                    legs_w_proximalcontact_increment[k] += increase_rate_stumble
-                else:
-                    if legs_w_proximalcontact_increment[k] > 0:
+                for k, tarsal_seg in enumerate(nmf.last_tarsalseg_names):
+                    if proximal_contact_leg[k] and not legs_in_hole[k]:
+                        nmf.physics.named.model.geom_rgba[
+                            "Animat/" + tarsal_seg[:2] + "Femur_visual"] = [1.0,
+                                                                            0.0,
+                                                                            0.0,
+                                                                            1.0]
                         legs_w_proximalcontact_increment[
-                            k] -= decrease_rate_stumble
+                            k] += increase_rate_stumble
+                    else:
+                        nmf.physics.named.model.geom_rgba[
+                            "Animat/" + tarsal_seg[
+                                        :2] + "Femur_visual"] = nmf.base_rgba
+                        if legs_w_proximalcontact_increment[k] > 0:
+                            legs_w_proximalcontact_increment[
+                                k] -= decrease_rate_stumble
 
-        # Calculate joint angle increment
-        inc_legs_in_hole = (raise_leg.T * legs_in_hole_increment).sum(axis=1)
-        inc_prox_contact = (raise_leg.T * legs_w_proximalcontact_increment).sum(axis=1)
-        joint_angle_increment = inc_legs_in_hole + inc_prox_contact
 
-        res = solver.integrate(nmf.curr_time)
-        phase = res[:N_OSCILLATORS]
-        amp = res[N_OSCILLATORS : 2 * N_OSCILLATORS]
+            # Calculate joint angle increment
+            incr_legs_in_hole = (raise_leg.T * legs_in_hole_increment).sum(axis=1)
+            incr_prox_contact = (raise_leg.T * legs_w_proximalcontact_increment).sum(axis=1)
+            joint_angle_increment = incr_legs_in_hole + incr_prox_contact
 
-        if i == N_STABILIZATION_STEPS:
-            # Now set the amplitude to their real values
-            solver.set_f_params(
-                N_OSCILLATORS,
-                frequencies,
-                coupling_weights,
-                phase_biases,
-                target_amplitudes,
-                rates,
-            )
-        if i > N_STABILIZATION_STEPS:
-            indices = cpg_controller.advancement_transfer(
-                phase, interp_step_duration, match_leg_to_joints
-            )
+            res = solver.integrate(nmf.curr_time)
+            phase = res[:N_OSCILLATORS]
+            amp = res[N_OSCILLATORS : 2 * N_OSCILLATORS]
 
-            # scale amplitude by interpolating between the resting values and i
-            # timestep value
-            input_joint_angles = (
-                data_block[joint_ids, 0]
-                + (data_block[joint_ids, indices] - data_block[joint_ids, 0])
-                * amp[match_leg_to_joints]
-            )
-        else:
-            input_joint_angles = data_block[joint_ids, 0]
+            if i == N_STABILIZATION_STEPS:
+                # Now set the amplitude to their real values
+                solver.set_f_params(
+                    N_OSCILLATORS,
+                    frequencies,
+                    coupling_weights,
+                    phase_biases,
+                    target_amplitudes,
+                    rates,
+                )
+            if i > N_STABILIZATION_STEPS:
+                indices = cpg_controller.advancement_transfer(
+                    phase, interp_step_duration, match_leg_to_joints
+                )
 
-        # Modify joint angles with hybrid input
-        input_joint_angles = input_joint_angles + joint_angle_increment
+                # scale amplitude by interpolating between the resting values and i
+                # timestep value
+                input_joint_angles = (
+                    data_block[joint_ids, 0]
+                    + (data_block[joint_ids, indices] - data_block[joint_ids, 0])
+                    * amp[match_leg_to_joints]
+                )
+            else:
+                input_joint_angles = data_block[joint_ids, 0]
 
-        leg_in_stance = np.logical_or(indices[joints_to_leg] < swing_starts_in_order,
-                                         indices[joints_to_leg] > stance_starts_in_order)
+            # Modify joint angles with hybrid input
+            input_joint_angles = input_joint_angles + joint_angle_increment
 
-        if adhesion:
-            adhesion_signal = leg_in_stance
-            # if leg in an hole or contacting with the wrong part of the leg
-            # remove adhesion
-            adhesion_signal[
-                np.logical_or(legs_in_hole, proximal_contact_leg)[
-                    last_tarsalseg_to_adh_id
-                ]
-            ] = 0.0
-        else:
-            adhesion_signal = np.zeros(6)
+            leg_in_stance = np.logical_or(indices[joints_to_leg] < swing_starts_in_order,
+                                             indices[joints_to_leg] > stance_starts_in_order)
 
-        action = {"joints": input_joint_angles, "adhesion": adhesion_signal}
+            if adhesion:
+                adhesion_signal = leg_in_stance
+                # if leg in an hole or contacting with the wrong part of the leg
+                # remove adhesion
+                adhesion_signal[
+                    np.logical_or(legs_in_hole, proximal_contact_leg)[
+                        last_tarsalseg_to_adh_id
+                    ]
+                ] = 0.0
+            else:
+                adhesion_signal = np.zeros(6)
 
-        obs, _, _, _, _ = nmf.step(action)
-        obs_list.append(obs)
-        _ = nmf.render()
+            action = {"joints": input_joint_angles, "adhesion": adhesion_signal}
+
+            obs, _, _, _, _ = nmf.step(action)
+            obs_list.append(obs)
+            _ = nmf.render()
+    except PhysicsError:
+        print("Simulation diverged, resetting")
 
     if video_path:
         nmf.save_video(video_path, stabilization_time=0.0)
@@ -412,78 +436,78 @@ def run_decentralized(
     stance_starts_in_order = np.array([leg_stance_starts[ts[:2]] for ts in nmf.last_tarsalseg_names])
     swing_starts_in_order = np.array([leg_swing_starts[ts[:2]] for ts in nmf.last_tarsalseg_names])
 
-    # Run the actual simulation
-    for i in range(num_steps):
-        # Decide in which leg to step
-        initiating_leg = np.argmax(leg_scores)
-        within_margin_legs = (
-            leg_scores[initiating_leg] - leg_scores
-            <= leg_scores[initiating_leg] * decentralized_controller.percent_margin
-        )
-        if i == N_STABILIZATION_STEPS + 1:
-            # Will not start with the hindlegs => remove them from the within margin legs
-            for l in LEGS:
-                if "H" in l:
-                    within_margin_legs[leg_corresp_id[l]] = False
-            print(within_margin_legs)
+    try:
+        # Run the actual simulation
+        for i in range(num_steps):
+            # Decide in which leg to step
+            initiating_leg = np.argmax(leg_scores)
+            within_margin_legs = (
+                leg_scores[initiating_leg] - leg_scores
+                <= leg_scores[initiating_leg] * decentralized_controller.percent_margin
+            )
+            if i == N_STABILIZATION_STEPS + 1:
+                # Will not start with the hindlegs => remove them from the within margin legs
+                for l in LEGS:
+                    if "H" in l:
+                        within_margin_legs[leg_corresp_id[l]] = False
 
+            # If multiple legs are within the margin choose randomly among those legs
+            if np.sum(within_margin_legs) > 1:
+                initiating_leg = np.random.choice(np.where(within_margin_legs)[0])
 
-        # If multiple legs are within the margin choose randomly among those legs
-        if np.sum(within_margin_legs) > 1:
-            initiating_leg = np.random.choice(np.where(within_margin_legs)[0])
+            # If the maximal score is zero or less (except for the first step after
+            # stabilisation to initate the locomotion) or if the leg is already stepping
+            if (
+                leg_scores[initiating_leg] <= 0 and not i == N_STABILIZATION_STEPS + 1
+            ) or stepping_advancement[initiating_leg] > 0:
+                initiating_leg = None
+            else:
+                stepping_advancement[initiating_leg] += increment
 
-        # If the maximal score is zero or less (except for the first step after
-        # stabilisation to initate the locomotion) or if the leg is already stepping
-        if (
-            leg_scores[initiating_leg] <= 0 and not i == N_STABILIZATION_STEPS + 1
-        ) or stepping_advancement[initiating_leg] > 0:
-            initiating_leg = None
-        else:
-            stepping_advancement[initiating_leg] += increment
+            rounded_stepping_advancement = np.round(stepping_advancement).astype(int)
+            joint_pos = data_block[joint_ids, rounded_stepping_advancement[match_leg_to_joints]]
 
-        rounded_stepping_advancement = np.round(stepping_advancement).astype(int)
-        joint_pos = data_block[joint_ids, rounded_stepping_advancement[match_leg_to_joints]]
+            if adhesion:
+                #adhesion_signal = nmf.get_adhesion_vector()
+                adhesion_signal = np.logical_or(stepping_advancement[legs_to_adhesion] < swing_starts_in_order,
+                                                stepping_advancement[legs_to_adhesion] > stance_starts_in_order)
+            else:
+                adhesion_signal = np.zeros(6)
 
-        if adhesion:
-            #adhesion_signal = nmf.get_adhesion_vector()
-            adhesion_signal = np.logical_or(stepping_advancement[legs_to_adhesion] < swing_starts_in_order,
-                                            stepping_advancement[legs_to_adhesion] > stance_starts_in_order)
-        else:
-            adhesion_signal = np.zeros(6)
+            action = {"joints": joint_pos, "adhesion": adhesion_signal}
+            obs, _, _, _, _ = nmf.step(action)
+            nmf.render()
+            obs_list.append(obs)
 
-        action = {"joints": joint_pos, "adhesion": adhesion_signal}
-        obs, _, _, _, _ = nmf.step(action)
-        nmf.render()
-        obs_list.append(obs)
+            stepping_advancement = decentralized_controller.update_stepping_advancement(
+                stepping_advancement, LEGS, interp_step_duration, increment
+            )
 
-        stepping_advancement = decentralized_controller.update_stepping_advancement(
-            stepping_advancement, LEGS, interp_step_duration, increment
-        )
+            (
+                rule1_contrib,
+                rule2_contrib,
+                rule3_contrib,
+            ) = decentralized_controller.compute_leg_scores(
+                decentralized_controller.rule1_corresponding_legs,
+                decentralized_controller.rule1_weight,
+                decentralized_controller.rule2_corresponding_legs,
+                decentralized_controller.rule2_weight,
+                decentralized_controller.rule2_weight_contralateral,
+                decentralized_controller.rule3_corresponding_legs,
+                decentralized_controller.rule3_weight,
+                decentralized_controller.rule3_weight_contralateral,
+                stepping_advancement,
+                leg_corresp_id,
+                leg_stance_starts_decentralized,
+                interp_step_duration,
+                LEGS,
+            )
 
-        (
-            rule1_contrib,
-            rule2_contrib,
-            rule3_contrib,
-        ) = decentralized_controller.compute_leg_scores(
-            decentralized_controller.rule1_corresponding_legs,
-            decentralized_controller.rule1_weight,
-            decentralized_controller.rule2_corresponding_legs,
-            decentralized_controller.rule2_weight,
-            decentralized_controller.rule2_weight_contralateral,
-            decentralized_controller.rule3_corresponding_legs,
-            decentralized_controller.rule3_weight,
-            decentralized_controller.rule3_weight_contralateral,
-            stepping_advancement,
-            leg_corresp_id,
-            leg_stance_starts_decentralized,
-            interp_step_duration,
-            LEGS,
-        )
-
-        leg_scores = rule1_contrib + rule2_contrib + rule3_contrib
+            leg_scores = rule1_contrib + rule2_contrib + rule3_contrib
+    except PhysicsError:
+        print("Simulation diverged, resetting")
 
     # Return observation list
-
     if video_path:
         nmf.save_video(video_path, stabilization_time=0.0)
 
@@ -680,11 +704,18 @@ def main(args):
     )
     hybridpts_path.mkdir(parents=True, exist_ok=True)
 
+    cs_placements = [
+        f"{side}{pos}Tarsus{i}" for side in "LR" for pos in "FMH" for i in
+        range(1, 6)
+    ]
+    cs_placements += [f"{side}{pos}Tibia" for side in "LR" for pos in "FMH"]
+
     sim_params.draw_adhesion = adhesion
     nmf_params = {
         "sim_params": sim_params,
         "init_pose": stretched_pose,
         "actuated_joints": all_leg_dofs,
+        "contact_sensor_placements": np.array(cs_placements),
     }
     start_exps = time.time()
     print("Starting experiments")
