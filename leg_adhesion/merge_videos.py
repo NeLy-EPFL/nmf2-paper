@@ -30,6 +30,9 @@ for deg in slope_degrees:
         frame_count += 1
         if frame_count / fps < warm_up_period:
             continue
+        if frame_count >= 200 + warm_up_period * fps:
+            print(f"Finished reading {path}")
+            break
 
         # add labels
         cv2.putText(
