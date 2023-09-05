@@ -174,8 +174,10 @@ class NMFNavigation(TurningController):
     ) -> None:
         self.debug_mode = debug_mode
         sim_params = MuJoCoParameters(
-            render_playspeed=0.1,
+            render_playspeed=0.5,
             render_camera="birdeye_cam",
+            # render_camera="Animat/camera_bottom",
+            draw_adhesion=True,
             enable_vision=True,
             render_raw_vision=test_mode,
             enable_olfaction=True,
@@ -206,12 +208,13 @@ class NMFNavigation(TurningController):
         #  - 2D vector of mean odor intensity on each side, norm. to [0, 1]
         #  - 2D vector of current oscillator amp. on each side, norm. to [0, 1]
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=(1,))
-        self.observation_space = gym.spaces.Box(low=0, high=1, shape=(9,))
+        self.observation_space = gym.spaces.Box(low=0, high=1, shape=(7,))
 
         self._last_fly_tgt_dist = np.linalg.norm(
             np.zeros(2) - self.arena.odor_source[0, :2]
         )
         self._last_turning_signal = 0
+        self._last_dist_mode = "x"
 
         # Compute x-y position of each ommatidium
         self.coms = np.empty((config.num_ommatidia_per_eye, 2))
@@ -221,7 +224,13 @@ class NMFNavigation(TurningController):
 
     def step(self, turning_signal):
         # turning_signal = turning_signal[0]
-        amplitude = np.array([1, -1]) * turning_signal
+        # amplitude = np.array([1, -1]) * turning_signal
+        amplitude = np.ones((2,))
+        if turning_signal < 0:
+            amplitude[0] -= np.abs(turning_signal) * 2
+        else:
+            amplitude[1] -= np.abs(turning_signal) * 2
+        # print("AMP", amplitude)
         try:
             obstacle_contact_counter = 0
             for i in range(self.num_substeps):
@@ -236,15 +245,17 @@ class NMFNavigation(TurningController):
             collision = obstacle_contact_counter > 20
         except PhysicsError:
             print("Physics error, resetting environment")
-            return np.zeros((9,), dtype="float32"), 0, False, True, {}
+            return np.zeros((7,), dtype="float32"), 0, False, True, {}
 
         # Check if visual inputs are rendered recently
         assert abs(self.curr_time - self._last_vision_update_time) < 0.25 * self.timestep
 
         # Parse observations
-        visual_features = self._get_visual_features()
+        visual_features_mask = np.array([0, 1, 1, 0, 1, 1], dtype=bool)
+        visual_features = self._get_visual_features()[visual_features_mask]
         odor_intensity = raw_obs["odor_intensity"][0, :].reshape(2, 2).mean(axis=0)
         odor_intensity /= self.arena.peak_odor_intensity[0, 0]
+        odor_intensity = np.clip(np.sqrt(odor_intensity), 0, 1)
         last_action = self._last_turning_signal / 2 + 0.5
         obs = np.array(
             [*visual_features, *odor_intensity, last_action], dtype=np.float32
@@ -254,6 +265,22 @@ class NMFNavigation(TurningController):
         # calculate distance reward
         fly_pos = super().get_observation()["fly"][0, :2]
         tgt_pos = self.arena.odor_source[0, :2]
+        # ignore_dist_reward = False
+        # if fly_pos[0] < self.arena.obstacle_positions[0, 0] + self.arena.obstacle_radius:
+        #     if self._last_dist_mode == "dist":
+        #         # print("Switching")
+        #         ignore_dist_reward = True
+        #     self._last_dist_mode = "x"
+        #     distance = self.arena.odor_source[0, 0] - fly_pos[0]
+        # else:
+        #     if self._last_dist_mode == "x":
+        #         ignore_dist_reward = True
+        #     self._last_dist_mode = "dist"
+        #     distance = np.linalg.norm(fly_pos - tgt_pos)
+        # if ignore_dist_reward:
+        #     distance_reward = 0
+        # else:
+        #     distance_reward = self._last_fly_tgt_dist - distance
         distance = np.linalg.norm(fly_pos - tgt_pos)
         distance_reward = self._last_fly_tgt_dist - distance
         self._last_fly_tgt_dist = distance
@@ -264,9 +291,12 @@ class NMFNavigation(TurningController):
             if np.linalg.norm(fly_pos - obst_pos) < self.arena.obstacle_radius + 1:
                 has_collision = True
                 break
+        
+        # extra distance reward
+        additional_reward_fac = 1 + (np.clip(5 - distance, 0, 5) / 5) * 3
 
         # calculate tentative reward
-        if distance < 2:
+        if distance < 3:
             reward = 30
             terminated = True
             info["state_desc"] = "success"
@@ -279,23 +309,63 @@ class NMFNavigation(TurningController):
             terminated = True
             info["state_desc"] = "flipped"
         else:
-            reward = distance_reward
+            has_passed_obstacle = fly_pos[0] > self.arena.obstacle_positions[0, 0]
+            # fac = 2 if has_passed_obstacle else 1
+            reward = distance_reward  * additional_reward_fac
             terminated = False
             info["state_desc"] = "seeking"
 
-        # penalty for too close to the cylinder
+        # penalty for not facing the obstacle
+        fly_orientation = super().get_observation()["fly"][2, 0] + np.pi / 2
+        obstacle_direction = np.arctan2(
+            self.arena.obstacle_positions[0, 1] - fly_pos[1],
+            self.arena.obstacle_positions[0, 0] - fly_pos[0],
+        )
         fly_obstacle_distance = np.linalg.norm(
             fly_pos - self.arena.obstacle_positions[0, :]
         )
-        obstacle_penalty = 1 - (fly_obstacle_distance - 3) / 2
-        obstacle_penalty = np.clip(obstacle_penalty, 0, 1)
-        reward -= obstacle_penalty
+        collision_angle = np.abs(fly_orientation - obstacle_direction)
+        collision_angle_lim = np.abs(np.arctan2(self.arena.obstacle_radius, fly_obstacle_distance))
+        # print(f"fly_orientation: {fly_orientation}, obstacle_direction: {obstacle_direction}")
+        # print(f"arctan({self.arena.obstacle_radius}, {fly_obstacle_distance})")
+        # print(collision_angle, collision_angle_lim)
+        collision_angle_norm = collision_angle / (collision_angle_lim * 1.8)
+        danger = 1 - np.clip(collision_angle_norm, 0, 1)
+        # print("heading only danger", danger)
+        # horizon = 6
+        # dist = np.clip(fly_obstacle_distance, self.arena.obstacle_radius, horizon)
+        # dist -= self.arena.obstacle_radius
+        # dist /= (horizon - self.arena.obstacle_radius)
+        # danger *= (1 - dist) * 2
+        # danger_coef = 2 if fly_pos[0] < self.arena.obstacle_positions[0, 0] else 1
+        reward -= danger
+        
+        # cos_sim = np.cos(fly_orientation - obstacle_direction)
+        # fly_obstacle_distance = np.linalg.norm(
+        #     fly_pos - self.arena.obstacle_positions[0, :]
+        # )
+        # horizon = 6
+        # heading_penalty = cos_sim()np.clip(horizon - fly_obstacle_distance, 0, horizon) / horizon
+        # obstacle_penalty = 1 - (fly_obstacle_distance - 3) / 2
+        # obstacle_penalty = np.clip(obstacle_penalty, 0, 1)
+        # reward -= obstacle_penalty
+        
+        # reward for facing the odor source
+        if fly_pos[0] > self.arena.obstacle_positions[0, 0]:
+            odor_direction = np.arctan2(
+                self.arena.odor_source[0, 1] - fly_pos[1],
+                self.arena.odor_source[0, 0] - fly_pos[0],
+            )
+            odor_angle = np.abs(fly_orientation - odor_direction)
+            target_reward = 1 - np.clip(odor_angle / 1, 0, 1)
+            reward += target_reward
+        else:
+            target_reward = 0
 
         # apply penalty for rapid turning
         action_diff_penalty = (
-            np.abs(turning_signal[0] - self._last_turning_signal) * 0.25
+            np.abs(turning_signal[0] - self._last_turning_signal) * 0.5
         )
-        # print(turning_signal, self._last_turning_signal)
         reward -= action_diff_penalty
 
         info["distance_reward"] = distance_reward
@@ -310,8 +380,10 @@ class NMFNavigation(TurningController):
                 f"fly_pos: {fly_pos}, final reward={reward}, state={info['state_desc']}"
             )
             print(
-                f"  dist reward={distance_reward}, obstacle penalty={obstacle_penalty}, action diff={action_diff_penalty}"
+                f"  dist rew={distance_reward:3f}, danger={danger:.3f}, "
+                f"action diff={action_diff_penalty:.3f}, tgt rew={target_reward:.3f}"
             )
+            print(f"  dist={distance:.3f}")
             if terminated:
                 print("terminated")
             if truncated:
@@ -322,11 +394,12 @@ class NMFNavigation(TurningController):
 
     def reset(self, seed=0):
         super().reset()
-        obs = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0], dtype="float32")
+        obs = np.array([0, 0, 0, 0, 0, 0, 0], dtype="float32")
         self._last_fly_tgt_dist = np.linalg.norm(
             np.zeros(2) - self.arena.odor_source[0, :2]
         )
         self._last_turning_signal = 0
+        self._last_dist_mode = "x"
         if self.debug_mode:
             print("resetting environment")
         return obs, {"state_desc": "reset"}
