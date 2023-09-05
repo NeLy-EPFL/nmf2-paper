@@ -106,6 +106,7 @@ class CPG:
         dphases = np.clip(dphases, 0, None)
 
         damplitudes = np.multiply(self.rates, targ_ampl - amplitudes)
+        # print("targ_ampl ", targ_ampl, " ", damplitudes)
 
         return dphases, damplitudes
 
