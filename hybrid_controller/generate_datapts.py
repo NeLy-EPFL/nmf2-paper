@@ -311,8 +311,8 @@ def run_hybrid(
     increase_rate_stumble = 1 / 5e-4 * nmf.timestep  # 1 step every 500µs
     decrease_rate_stumble = 1 / 2e-3 * nmf.timestep
 
-    increase_rate_hole = 1 / 1e-3 * nmf.timestep
-    decrease_rate_hole = 1 / 2.5e-3 * nmf.timestep
+    increase_rate_hole = 1 / 2e-3 * nmf.timestep
+    decrease_rate_hole = 1 / 3e-3 * nmf.timestep
 
     last_tarsalseg_to_adh_id = [
         i
@@ -336,14 +336,14 @@ def run_hybrid(
                 )
                 for k, tarsal_seg in enumerate(nmf.last_tarsalseg_names):
                     if legs_in_hole[k]:
-                        nmf.physics.named.model.geom_rgba[
-                            "Animat/" + tarsal_seg[:2] + "Tibia_visual"
-                        ] = [0.0, 0.0, 1.0, 1.0]
+                        # nmf.physics.named.model.geom_rgba[
+                        #     "Animat/" + tarsal_seg[:2] + "Tibia_visual"
+                        # ] = [0.0, 0.0, 1.0, 1.0]
                         legs_in_hole_increment[k] += increase_rate_hole
                     else:
-                        nmf.physics.named.model.geom_rgba[
-                            "Animat/" + tarsal_seg[:2] + "Tibia_visual"
-                        ] = nmf.base_rgba
+                        # nmf.physics.named.model.geom_rgba[
+                        #     "Animat/" + tarsal_seg[:2] + "Tibia_visual"
+                        # ] = nmf.base_rgba
                         if legs_in_hole_increment[k] > 0:
                             legs_in_hole_increment[k] -= decrease_rate_hole
 
@@ -370,14 +370,14 @@ def run_hybrid(
 
                 for k, tarsal_seg in enumerate(nmf.last_tarsalseg_names):
                     if proximal_contact_leg[k] and not legs_in_hole[k]:
-                        nmf.physics.named.model.geom_rgba[
-                            "Animat/" + tarsal_seg[:2] + "Femur_visual"
-                        ] = [1.0, 0.0, 0.0, 1.0]
+                        # nmf.physics.named.model.geom_rgba[
+                        #     "Animat/" + tarsal_seg[:2] + "Femur_visual"
+                        # ] = [1.0, 0.0, 0.0, 1.0]
                         legs_w_proximalcontact_increment[k] += increase_rate_stumble
                     else:
-                        nmf.physics.named.model.geom_rgba[
-                            "Animat/" + tarsal_seg[:2] + "Femur_visual"
-                        ] = nmf.base_rgba
+                        # nmf.physics.named.model.geom_rgba[
+                        #     "Animat/" + tarsal_seg[:2] + "Femur_visual"
+                        # ] = nmf.base_rgba
                         if legs_w_proximalcontact_increment[k] > 0:
                             legs_w_proximalcontact_increment[k] -= decrease_rate_stumble
 
