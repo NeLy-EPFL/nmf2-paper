@@ -175,9 +175,10 @@ class NMFNavigation(TurningController):
         self.debug_mode = debug_mode
         sim_params = MuJoCoParameters(
             render_playspeed=0.5,
+            render_fps=30,
             render_camera="birdeye_cam",
             # render_camera="Animat/camera_bottom",
-            draw_adhesion=True,
+            draw_adhesion=False,
             enable_vision=True,
             render_raw_vision=test_mode,
             enable_olfaction=True,
