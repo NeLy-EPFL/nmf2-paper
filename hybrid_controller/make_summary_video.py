@@ -9,7 +9,7 @@ from subprocess import run
 
 
 # Configs
-data_path = Path("Data_points")
+data_path = Path("data")
 controller_paths = {"CPG": "CPG", "Rule-based": "Decentralized", "Hybrid": "hybrid"}
 terrain_types = ["flat", "blocks", "gapped", "mixed"]
 enable_adhesion = True
