@@ -24,6 +24,7 @@ for deg in slope_degrees:
     frame_count = 0
     while True:
         ret, frame = cap.read()
+        frame = cv2.flip(frame, 1)
         if not ret:
             print(f"Finished reading {path}")
             break
