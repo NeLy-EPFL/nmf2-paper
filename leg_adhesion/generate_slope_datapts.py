@@ -55,10 +55,10 @@ def get_data_block(timestep, actuated_joints):
     )
 
     leg_swing_starts = {
-        k: v / nmf.timestep for k, v in data["swing_stance_time"]["swing"].items()
+        k: v / timestep for k, v in data["swing_stance_time"]["swing"].items()
     }
     leg_stance_starts = {
-        k: v / nmf.timestep for k, v in data["swing_stance_time"]["stance"].items()
+        k: v / timestep for k, v in data["swing_stance_time"]["stance"].items()
     }
 
     return (
@@ -94,11 +94,12 @@ def run_CPG(
     base_path,
     leg_swing_starts,
     leg_stance_starts,
+    adhesion,
 ):
-    print(f"Running CPG gravity {slope} {axis}")
+    print(f"Running CPG gravity {slope} {axis} adhesion {adhesion}")
 
     # Define save path
-    save_path = base_path / f"CPG_gravity_{slope}_{axis}.pkl"
+    save_path = base_path / f"CPG_gravity_{slope}_{axis}_adhesion{adhesion}.pkl"
     if save_path.exists():
         print(f"CPG gravity {slope} {axis} already exists")
         return
@@ -220,22 +221,8 @@ def run_CPG(
 if __name__ == "__main__":
     slopes_in_degrees = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90][::-1]
 
-    # Initialize simulation but with flat terrain at the beginning to define the swing
-    # and stance starts
-    sim_params = MuJoCoParameters(
-        timestep=1e-4,
-        render_mode="saved",
-        render_playspeed=0.1,
-        enable_adhesion=True,
-        draw_adhesion=True,
-        align_camera_with_gravity=True,
-        draw_gravity=False,
-    )
-    nmf = NeuroMechFlyMuJoCo(
-        sim_params=sim_params,
-        init_pose=stretched_pose,
-        actuated_joints=all_leg_dofs,
-    )
+    timestep = 1e-4
+    actuated_joints = all_leg_dofs
 
     metadata = {
         "controller_seed": CONTROLLER_SEED,
@@ -247,7 +234,7 @@ if __name__ == "__main__":
         "target_amplitude": TARGET_AMPLITUDE,
         "legs": LEGS,
         "n_oscillators": N_OSCILLATORS,
-        "timestep": nmf.timestep,
+        "timestep": timestep,
         # "sim_params": nmf.sim_params,
     }
 
@@ -258,7 +245,7 @@ if __name__ == "__main__":
         joint_ids,
         leg_swing_starts,
         leg_stance_starts,
-    ) = get_data_block(nmf.timestep, nmf.actuated_joints)
+    ) = get_data_block(timestep, actuated_joints)
 
     # Create folder to save data points
     base_path = Path(f"data/slope_front")
@@ -273,17 +260,33 @@ if __name__ == "__main__":
     start_exps = time.time()
     print("Starting front slope experiments")
     for slope in slopes_in_degrees:
-        run_CPG(
-            nmf,
-            data_block,
-            match_leg_to_joints,
-            joint_ids,
-            slope,
-            "y",
-            base_path,
-            leg_swing_starts,
-            leg_stance_starts,
-        )
+        for adhesion in [True, False]:
+            sim_params = MuJoCoParameters(
+                timestep=1e-4,
+                render_mode="saved",
+                render_playspeed=0.1,
+                enable_adhesion=adhesion,
+                draw_adhesion=adhesion,
+                align_camera_with_gravity=True,
+                draw_gravity=False,
+            )
+            nmf = NeuroMechFlyMuJoCo(
+                sim_params=sim_params,
+                init_pose=stretched_pose,
+                actuated_joints=all_leg_dofs,
+            )
+            run_CPG(
+                nmf,
+                data_block,
+                match_leg_to_joints,
+                joint_ids,
+                slope,
+                "y",
+                base_path,
+                leg_swing_starts,
+                leg_stance_starts,
+                adhesion=adhesion,
+            )
 
     print(
         f"{len(slopes_in_degrees)} experiments took "
