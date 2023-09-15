@@ -40,7 +40,7 @@ class VisualFeaturePreprocessor(pl.LightningModule):
         k_dist=2,
         k_classification=0.1,
         k_azimuth=4,
-        k_size=1,
+        k_size=2,
         max_dist=10,
     ):
         super().__init__()
