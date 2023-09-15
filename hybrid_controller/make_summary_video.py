@@ -11,7 +11,7 @@ from subprocess import run
 # Configs
 data_path = Path("data")
 controller_paths = {"CPG": "CPG", "Rule-based": "Decentralized", "Hybrid": "hybrid"}
-terrain_types = ["flat", "blocks", "gapped", "mixed"]
+terrain_types = ["flat", "gapped", "blocks", "mixed"]
 enable_adhesion = True
 num_trials = 10
 output_path = Path("outputs/controller_comparison.mp4")
@@ -69,7 +69,7 @@ def draw_frame(curr_video, frame_within_video):
         for j, terrain in enumerate(terrain_types):
             ax = axs[i, j]
             frame = all_videos[(controller, terrain)][curr_video][frame_within_video]
-            ax.imshow(frame[:, ::-1, :])
+            ax.imshow(frame[30:, ::-1, :])
             ax.axis("off")
             ax.text(7, 60, f"Trial {curr_video + 1}", fontname="Helvetica", fontsize=20)
 
