@@ -17,7 +17,9 @@ from arena import ObstacleOdorArena
 from rl_navigation import NMFNavigation
 from vision_model import VisualFeaturePreprocessor
 
-base_dir = Path("/home/sibwang/nmf2-paper/hierarchical_controller/trial_c18")
+
+base_dir = Path("/home/sibwang/nmf2-paper/integrated_task/preprint_trial")
+
 
 ## Load vision model =====
 vision_model_path = base_dir / "data/vision/visual_preprocessor.pt"
@@ -215,7 +217,7 @@ if __name__ == "__main__":
         (0, -1, 0.2), (0, 0, 0.2), (0, 1, 0.2), 
         (1, -1, 0.2), (1, 0, 0.2), (1, 1, 0.2),     
     ]
-    num_train_steps = "published_version"  # 266000
+    num_train_steps = 266000
     model_path = f"data/rl/rl_model.zip"
     for spawn_pos in spawn_positions:
         run_and_visualize(
