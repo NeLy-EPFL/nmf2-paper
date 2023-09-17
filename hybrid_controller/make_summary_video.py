@@ -13,7 +13,7 @@ data_path = Path("data")
 controller_paths = {"CPG": "CPG", "Rule-based": "Decentralized", "Hybrid": "hybrid"}
 terrain_types = ["flat", "gapped", "blocks", "mixed"]
 enable_adhesion = True
-num_trials = 10
+num_trials = 20
 output_path = Path("outputs/controller_comparison.mp4")
 
 
