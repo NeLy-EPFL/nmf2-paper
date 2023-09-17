@@ -23,7 +23,7 @@ import yaml
 ENVIRONEMENT_SEED = 0
 
 N_STABILIZATION_STEPS = 2000
-RUN_TIME = 1.5
+RUN_TIME = 1
 
 LEGS = ["RF", "RM", "RH", "LF", "LM", "LH"]
 N_OSCILLATORS = len(LEGS)
@@ -50,14 +50,14 @@ def get_arena(arena_type, seed=ENVIRONEMENT_SEED):
     if arena_type == "flat":
         return mujoco_arena.FlatTerrain()
     elif arena_type == "gapped":
-        return mujoco_arena.GappedTerrain(gap_width=0.5)
+        return mujoco_arena.GappedTerrain(gap_width=0.4)
     elif arena_type == "blocks":
         return mujoco_arena.BlocksTerrain(
             rand_seed=seed,
         )
     elif arena_type == "mixed":
         return mujoco_arena.MixedTerrain(
-            gap_width=0.5, rand_seed=seed
+            gap_width=0.4, rand_seed=seed
         )  # seed for randomized block heights
 
 
@@ -714,7 +714,7 @@ def main(args):
     positions[:, 0] = positions[:, 0] * max_x - shift_x
     positions[:, 1] = positions[:, 1] * max_y - shift_y
 
-    internal_seeds = list(range(20))
+    internal_seeds = list(range(30))
     assert args.n_exp <= len(internal_seeds), "Not enough internal seeds defined"
     internal_seeds = internal_seeds[: args.n_exp]
 
