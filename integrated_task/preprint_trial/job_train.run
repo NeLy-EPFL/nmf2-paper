@@ -1,0 +1,14 @@
+#!/bin/bash
+#SBATCH --nodes 1
+#SBATCH --ntasks 1
+#SBATCH --cpus-per-task 20
+#SBATCH --gres gpu:1
+#SBATCH --mem 150G
+#SBATCH --time 48:00:00
+#SBATCH --job-name train_c18
+
+$HOME/miniconda3/bin/conda init bash
+. $HOME/miniconda3/etc/profile.d/conda.sh
+conda activate flygym
+
+python train_navigation_task.py
