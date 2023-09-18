@@ -4,6 +4,9 @@ import pickle
 import matplotlib.pyplot as plt
 from matplotlib import patches
 
+plt.rcParams['font.family'] = 'Arial'
+plt.rcParams['pdf.fonttype'] = 42
+
 spawn_positions = [
     (-1, -1, 0.2), (-1, 0, 0.2), (-1, 1, 0.2), 
     (0, -1, 0.2), (0, 0, 0.2), (0, 1, 0.2), 
@@ -67,7 +70,7 @@ for spawn_pos in spawn_positions:
     trajectory = [np.array(spawn_pos[:2])] + [x["fly_pos"] for x in info_hist[1:]]
     trajectories.append(np.array(trajectory))
 
-fig, ax = plt.subplots(1, 1, figsize=(5, 5))
+fig, ax = plt.subplots(1, 1, figsize=(3, 3))
 for trajectory in trajectories:
     last_pos_dist = np.linalg.norm(trajectory[-1, :] - np.array([15, 0]))
     if last_pos_dist < 3:
@@ -76,12 +79,16 @@ for trajectory in trajectories:
     else:
         color = "tab:red"
         end_marker = "x"
-    plt.plot([trajectory[0, 0]], trajectory[0, 1], marker="o", color=color, markersize=5)
-    plt.plot(trajectory[:, 0], trajectory[:, 1], linewidth=1, color=color)
-    plt.plot([trajectory[-1, 0]], trajectory[-1, 1], marker=end_marker, color=color, markersize=5)
-target = patches.Circle((15, 0), radius=3, edgecolor="tab:orange", facecolor="none", linestyle="--")
+    plt.plot([trajectory[0, 0]], trajectory[0, 1], marker="o", color=color, markersize=3)
+    plt.plot(trajectory[:, 0], trajectory[:, 1], linewidth=0.5, color=color)
+    plt.plot([trajectory[-1, 0]], trajectory[-1, 1], marker=end_marker, color=color, markersize=3)
+target_range = patches.Circle((15, 0), radius=3, edgecolor="tab:orange", facecolor="none", linestyle="--", linewidth=0.5)
+target = patches.Circle((15, 0), radius=0.5, edgecolor="tab:orange", facecolor="tab:orange")
+obstacle = patches.Circle((7.5, 0), radius=1, edgecolor="black", facecolor="black")
+ax.add_patch(target_range)
 ax.add_patch(target)
+ax.add_patch(obstacle)
 ax.set_aspect("equal")
-ax.set_xlim([-5, 20])
-ax.set_ylim([-10, 10])
+ax.set_xlim([-2, 19])
+ax.set_ylim([-7, 7])
 fig.savefig("outputs/trajectories.pdf", transparent=True)
