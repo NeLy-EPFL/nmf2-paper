@@ -1,0 +1,14 @@
+#!/bin/bash
+#SBATCH --nodes 1
+#SBATCH --ntasks 1
+#SBATCH --cpus-per-task 1
+#SBATCH --gres gpu:1
+#SBATCH --mem 10G
+#SBATCH --time 1:00:00
+#SBATCH --job-name test_c18
+
+$HOME/miniconda3/bin/conda init bash
+. $HOME/miniconda3/etc/profile.d/conda.sh
+conda activate flygym
+
+python run_and_visualize.py
