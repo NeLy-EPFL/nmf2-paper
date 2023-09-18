@@ -2,7 +2,7 @@ import numpy as np
 import gymnasium as gym
 from typing import Tuple, Callable
 from dm_control import mjcf
-import os
+import torch
 
 import flygym.util.vision as vision
 import flygym.util.config as config
@@ -10,6 +10,8 @@ from flygym.arena.mujoco_arena import OdorArena
 from flygym.envs.nmf_mujoco import MuJoCoParameters
 
 from cpg_controller import NMFCPG
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class ObstacleOdorArena(OdorArena):
     """Terrain with an odor source and wall obstacles.
@@ -99,7 +101,10 @@ class ObstacleOdorArena(OdorArena):
 
         return visible
 
-    def get_walls_distance(self, position: np.ndarray, orientation: np.ndarray):
+    def get_closest_center_dist(self, position: np.ndarray, orientation: np.ndarray):
+        """Computes the distance to the center of the obstacle closest to position that is visible 
+            given the orientation, in the referential described by position and orientation.
+        """
         norms = []
         distances = []
         for idx, p in enumerate(self.walls_positions):
@@ -114,15 +119,48 @@ class ObstacleOdorArena(OdorArena):
                 distances.append(vec)
         if distances:     
             distances = np.array(distances)
-            idx = np.argmin(np.array(norms))
+            # Compute index of closest obstacle in x direction of the fly referential
+            idx = np.argmin(distances[:,0])
             return [*distances[idx], True]
         else:
-            return [0, 0, False]      
+            return [0, 0, False]
 
 
 class NMFAvoidObstacle(NMFCPG):
+    """Wrapper for the NeuroMechFlyMujoco class for Reinforcement Learning to 
+        perform odor taxis with obstacle avoidance.
+
+    Attributes
+    ----------
+    nmf : NeuroMechFlyMuJoCo
+        Underlying NMF object.
+    num_dofs : int
+        Number of controlled DOFs of the nmf.
+    action_space : gymnasium.spaces.Box
+        Action space for RL.
+    observation_space : gymnasium.spaces.Box
+        Observation space for RL.
+    previous_odor : 
+        Memory of previous odor reading.
+
+    Parameters
+    ----------
+    featuresNN :
+        Pre-trained feature extractor network.
+    decision_dt :
+        Duration in simulation between each action.
+    n_stabilisation_steps : int
+        Number of simulation steps during which no joint command is given, for CPG
+        stabilisation, by default 5000.
+    obj_threshold :
+        Value threshold for the object detection (if ommatidia_reading < obj_threshold, it
+        is considered part of the object).
+    max_time :
+        Maximum simulation time.
+    """
     def __init__(
         self,
+        featuresNN,
         decision_dt=0.05,
         n_stabilisation_steps: int = 5000,
         obj_threshold=50,
@@ -150,8 +188,10 @@ class NMFAvoidObstacle(NMFCPG):
 
         # Override spaces
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=(2,))
-        self.observation_space = gym.spaces.Box(low=0, high=1, shape=(4,))
+        self.observation_space = gym.spaces.Box(low=0, high=1, shape=(3,))
 
+        self.featuresNN = featuresNN
+        self.previous_odor = None
 
     def reset(self):
         raw_obs, info = super().reset()
@@ -163,22 +203,58 @@ class NMFAvoidObstacle(NMFCPG):
             raw_obs, _, raw_term, raw_trunc, raw_info = super().step(amplitude)
             super().render()
 
-        obs = raw_obs['odor_intensity'][0]
-        reward = np.mean(obs)
+        obs = self._extract_features(raw_obs['vision'])
+        reward = self._get_odor_reward(raw_obs['odor_intensity'][0])
 
         truncated = raw_trunc or self.curr_time >= self.max_time
         terminated = raw_term
         return obs, reward, terminated, truncated, raw_info
 
+    def _extract_features(self,ommatidia_readings:np.ndarray):
+        inputs = torch.tensor((1/255)*ommatidia_readings.max(axis=2), device=device, dtype=torch.float32)
+        return self.featuresNN(inputs)
+    
+    def _get_odor_reward(self,odor_readings):
+        if self.previous_odor is not None:
+            reward = np.mean(odor_readings)-self.previous_odor
+        else:
+            reward = 0
+        self.previous_odor = np.mean(odor_readings)
+        return reward
+    
 
 class NMFObservation(NMFCPG):
+    """Wrapper for the NeuroMechFlyMujoco class for sample collection for 
+        the feature extractor network training.
+
+    Attributes
+    ----------
+    nmf : NeuroMechFlyMuJoCo
+        Underlying NMF object.
+    num_dofs : int
+        Number of controlled DOFs of the nmf.
+    action_space : gymnasium.spaces.Box
+        Action space for RL.
+
+    Parameters
+    ----------
+    decision_dt :
+        Duration in simulation between each action.
+    n_stabilisation_steps : int
+        Number of simulation steps during which no joint command is given, for CPG
+        stabilisation, by default 5000.
+    obj_threshold :
+        Value threshold for the object detection (if ommatidia_reading < obj_threshold, it
+        is considered part of the object).
+    max_time :
+        Maximum simulation time.
+    """
     def __init__(
         self,
         decision_dt=0.0001,
         n_stabilisation_steps: int = 5000,
         obj_threshold=50,
         max_time=2,
-        pos_range=[[0,30],[-12,12]],
         **kwargs
     ) -> None:
         if "sim_params" in kwargs:
@@ -203,9 +279,6 @@ class NMFObservation(NMFCPG):
         # Override spaces
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=(2,))
 
-        (self.xmin,self.xmax) = pos_range[0]
-        (self.ymin,self.ymax) = pos_range[1]
-
     def reset(self):
         raw_obs, info = super().reset()
         self.arena.reset(new_spawn_pos=True, new_move_mode=True)
@@ -226,11 +299,7 @@ class NMFObservation(NMFCPG):
         # Normalize vision and reduce to one channel
         vision = (1/255)*raw_obs['vision'].max(axis=2)
 
-        features = self.arena.get_walls_distance(raw_obs['fly'][0,:], raw_obs['fly'][2,:])
-        # if features[-1]:
-        #     # Normalize distance to range of possible positions
-        #     features[0] = (features[0]-self.xmin)/(self.xmax-self.xmin)
-        #     features[1] = (features[1]-self.ymin)/(self.ymax-self.ymin)
+        features = self.arena.get_closest_center_dist(raw_obs['fly'][0,:], raw_obs['fly'][2,:])
 
         # Check that the visual input contains an obstacle, otherwise mask features
         # see_obs = np.count_nonzero(vision < self.obj_threshold) > 0
