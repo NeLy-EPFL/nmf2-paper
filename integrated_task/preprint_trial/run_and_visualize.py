@@ -18,16 +18,19 @@ from rl_navigation import NMFNavigation
 from vision_model import VisualFeaturePreprocessor
 
 
-base_dir = Path("/home/sibwang/nmf2-paper/integrated_task/preprint_trial")
+base_dir = Path(__file__).parent.absolute()
+device = torch.device("cpu")
 
 
 ## Load vision model =====
 vision_model_path = base_dir / "data/vision/visual_preprocessor.pt"
-vision_model = VisualFeaturePreprocessor.load_from_checkpoint(vision_model_path).cpu()
+vision_model = VisualFeaturePreprocessor.load_from_checkpoint(
+    vision_model_path, map_location=device
+)
 ommatidia_graph_path = base_dir / "data/vision/ommatidia_graph.pkl"
 with open(ommatidia_graph_path, "rb") as f:
     ommatidia_graph_nx = pickle.load(f)
-ommatidia_graph = pyg.utils.from_networkx(ommatidia_graph_nx).cpu()
+ommatidia_graph = pyg.utils.from_networkx(ommatidia_graph_nx).to(device)
 
 ## Fix random seed =====
 np.random.seed(0)
@@ -39,7 +42,7 @@ def add_insets(
     visual_input,
     odor_intensities,
     odor_color,
-    odor_gain=400,
+    odor_gain=800,
     panel_height=150
 ):
     final_frame = np.zeros(
@@ -130,7 +133,13 @@ def make_arena():
     return odor_arena
 
 def run_and_visualize(
-    model_path, out_path, spawn_pos=[-0.02, 0, 0.2], spawn_orient=(0, 0, np.pi / 2)
+    model_path,
+    out_path,
+    spawn_pos=[-0.02, 0, 0.2],
+    spawn_orient=(0, 0, np.pi / 2),
+    render_camera="birdeye_cam",
+    render_playspeed=0.2,
+    vision_refresh_rate=None,
 ):
     out_path = Path(out_path)
     out_path.mkdir(parents=True, exist_ok=True)
@@ -141,6 +150,9 @@ def run_and_visualize(
         ommatidia_graph=ommatidia_graph,
         test_mode=True,
         debug_mode=True,
+        render_camera=render_camera,
+        render_playspeed=render_playspeed,
+        vision_refresh_rate=vision_refresh_rate,
     )
 
     model = sb3.SAC.load(model_path)
@@ -170,12 +182,16 @@ def run_and_visualize(
     reward_hist = np.array(reward_hist)
     action_hist = np.array(action_hist)
 
+    # Save video
+    init_time = 0.05
     with imageio.get_writer(
         out_path / "video.mp4", fps=sim.sim_params.render_fps
     ) as writer:
-        for viz_frame, vision_input, odor_input in zip(
+        for i, (viz_frame, vision_input, odor_input) in enumerate(zip(
             sim.controller._frames, sim.vision_hist, sim.odor_hist
-        ):
+        )):
+            if i * sim.controller._eff_render_interval < init_time:
+                continue
             frame = add_insets(
                 viz_frame,
                 vision_input,
@@ -212,16 +228,27 @@ def run_and_visualize(
 
 
 if __name__ == "__main__":
-    spawn_positions = [
-        (-1, -1, 0.2), (-1, 0, 0.2), (-1, 1, 0.2), 
-        (0, -1, 0.2), (0, 0, 0.2), (0, 1, 0.2), 
-        (1, -1, 0.2), (1, 0, 0.2), (1, 1, 0.2),     
-    ]
+    # spawn_positions = [
+    #     (-1, -1, 0.2), (-1, 0, 0.2), (-1, 1, 0.2), 
+    #     (0, -1, 0.2), (0, 0, 0.2), (0, 1, 0.2), 
+    #     (1, -1, 0.2), (1, 0, 0.2), (1, 1, 0.2),     
+    # ]
+    # num_train_steps = 266000
+    # model_path = f"data/rl/rl_model.zip"
+    # for spawn_pos in spawn_positions:
+    #     run_and_visualize(
+    #         model_path,
+    #         f"outputs/{num_train_steps}_{spawn_pos[0]}_{spawn_pos[1]}_{spawn_pos[2]}", 
+    #         np.array(spawn_pos),
+    #     )
+
     num_train_steps = 266000
     model_path = f"data/rl/rl_model.zip"
-    for spawn_pos in spawn_positions:
-        run_and_visualize(
-            model_path,
-            f"outputs/{num_train_steps}_{spawn_pos[0]}_{spawn_pos[1]}_{spawn_pos[2]}", 
-            np.array(spawn_pos),
-        )
+    run_and_visualize(
+        model_path,
+        f"outputs/example_out",
+        np.array([0, 0, 0.2]),
+        render_camera="back_cam",
+        render_playspeed=0.2,
+        vision_refresh_rate=100,
+    )

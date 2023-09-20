@@ -38,14 +38,19 @@ class NMFNavigation(gym.Env):
         tgt_margin_epsilon=2,
         tgt_margin_q=3,
         fly_obs_dist_horizon=10,
+        render_camera="birdeye_cam",
+        render_playspeed=0.5,
+        vision_refresh_rate=None,
         **kwargs,
     ) -> None:
+        if vision_refresh_rate is None:
+            vision_refresh_rate = int(1 / decision_dt)
         self.debug_mode = debug_mode
         self.sim_params = MuJoCoParameters(
             timestep=1e-4,
-            render_playspeed=0.5,
+            render_playspeed=render_playspeed,
             render_fps=30,
-            render_camera="birdeye_cam",
+            render_camera=render_camera,
             # render_camera="Animat/camera_bottom",
             enable_adhesion=True,
             draw_adhesion=True,
@@ -56,7 +61,7 @@ class NMFNavigation(gym.Env):
             render_raw_vision=test_mode,
             enable_olfaction=True,
             render_mode="saved" if test_mode else "headless",
-            vision_refresh_rate=int(1 / decision_dt),
+            vision_refresh_rate=vision_refresh_rate,
         )
         self.vision_model = vision_model.to(device)
         self.ommatidia_graph_l = ommatidia_graph.to(device).clone()
@@ -82,6 +87,8 @@ class NMFNavigation(gym.Env):
         self.descending_range = descending_range
         self.vision_hist = []
         self.odor_hist = []
+        self._x_pos_hist = []
+        self._back_camera_x_offset = self.arena.back_cam.pos[0]
 
         self.max_time = max_time
         self.num_substeps = int(decision_dt / self.controller.timestep)
@@ -166,7 +173,23 @@ class NMFNavigation(gym.Env):
                 ]
                 if np.sum(collision_forces) > 1:
                     obstacle_contact_counter += 1
+                back_cam = self.controller.arena.back_cam
+                # print(back_cam.pos)
+                # back_cam.pos[0] = raw_obs["fly"][0, 0]
+                self._x_pos_hist.append(raw_obs["fly"][0, 0])
+                curr_cam_x_pos = back_cam.pos[0]
+                if len(self._x_pos_hist) < 400:
+                    smoothed_fly_pos = 0
+                else:
+                    smoothed_fly_pos = np.median(self._x_pos_hist[-800:])
+                back_cam_x = max(curr_cam_x_pos, smoothed_fly_pos) + self._back_camera_x_offset
+                self.controller.physics.bind(back_cam).pos[0] = back_cam_x
                 render_res = self.controller.render()
+                # if render_res is not None:
+                #     import matplotlib.pyplot as plt
+                #     plt.imshow(render_res)
+                #     plt.show()
+                #     assert False
                 if render_res is not None:
                     self.odor_hist.append(raw_obs["odor_intensity"].copy())
                     self.vision_hist.append(raw_obs["vision"].copy())

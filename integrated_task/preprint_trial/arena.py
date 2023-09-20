@@ -101,7 +101,7 @@ class ObstacleOdorArena(BaseArena):
             )
 
         # Add monitor cameras
-        self.root_element.worldbody.add(
+        self.side_cam = self.root_element.worldbody.add(
             "camera",
             name="side_cam",
             mode="fixed",
@@ -109,15 +109,15 @@ class ObstacleOdorArena(BaseArena):
             euler=(np.deg2rad(75), 0, 0),
             fovy=50,
         )
-        self.root_element.worldbody.add(
+        self.back_cam = self.root_element.worldbody.add(
             "camera",
             name="back_cam",
             mode="fixed",
-            pos=(-10, 0, 12),
-            euler=(0, np.deg2rad(-60), -np.deg2rad(90)),
-            fovy=50,
+            pos=(-9, 0, 7),
+            euler=(np.deg2rad(60), 0, -np.deg2rad(90)),
+            fovy=55,
         )
-        self.root_element.worldbody.add(
+        self.birdeye_cam = self.root_element.worldbody.add(
             "camera",
             name="birdeye_cam",
             mode="fixed",
@@ -125,7 +125,7 @@ class ObstacleOdorArena(BaseArena):
             euler=(0, 0, 0),
             fovy=45,
         )
-        self.root_element.worldbody.add(
+        self.birdeye_cam_origin = self.root_element.worldbody.add(
             "camera",
             name="birdeye_cam_origin",
             mode="fixed",

@@ -1,6 +1,8 @@
 networkx
 torch
 torch_geometric
+lightning
+torchmetrics
 seaborn
 rasterio
 gymnasium
