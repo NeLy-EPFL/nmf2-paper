@@ -231,7 +231,7 @@ if smoothing and conv_casting == "valid":
 
 
 # Need to adjust the swing and stance times accordingly
-swing_stance_dict_path = Path("data/3D_pose_alfie/swing_stance.pkl")
+swing_stance_dict_path = Path("data/swing_stance.pkl")
 with open(swing_stance_dict_path, "rb") as f:
     swing_stance_dict = pickle.load(f)
 if smoothing and conv_casting == "valid":
