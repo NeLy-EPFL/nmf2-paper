@@ -17,7 +17,7 @@ from pathlib import Path
 import pickle
 import pandas as pd
 
-benchmark_folder = Path("/Users/stimpfli/Desktop/nmf2-paper/revision_stepping/data/benchmark_turning_parallel_adhesion_R=2.0")
+benchmark_folder = Path("/home/stimpfling/nmf2-paper/revision_stepping/data/benchmark_turning_parallel_adhesion_R=2.0")
 files = sorted(benchmark_folder.glob("*.pkl"))
 timesteps = []
 run_times = []
