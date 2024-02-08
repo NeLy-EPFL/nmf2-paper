@@ -58,7 +58,7 @@ make_traj_plots = False
 if make_traj_plots:
     out_traj_folder = out_folder / "traj_plots"
     out_traj_folder.mkdir(exist_ok=True, parents=True)
-n_pts = 100
+n_pts = 4
 n_processes = 4
 
 def initialize_nmf():
@@ -143,20 +143,29 @@ def run_experiment(k, turn_start_step, turn_end_step, turn_drive):
                     )
     turning_angle_change = np.rad2deg(turning_angle)
     # save everything to a file
-    with open(out_folder / f"turning_{k}.pkl", "wb") as f:
+    with open(out_folder / f"turning_basic_{k}.pkl", "wb") as f:
         pickle.dump(
             {   "timestep": timestep,
                 "run_time": run_time,
-                "fly_pos": fly_pos,
-                "fly_angs": fly_angs,
-                "fly_orientation": fly_orientations,
-                "trurn_drive": turn_drive,
-                "turning_indices": (turn_start_step, turn_end_step),
+                "l_drive": turn_drive[0],
+                "r_drive": turn_drive[1],
+                "turn_start": turn_start_step,
+                "turn_ends": turn_end_step,
                 "cpg_phase_turn_start": RF_cpg_phase_turn_start,
                 "turning_angle_change": turning_angle_change,
             },
             f,
         )
+    with open(out_folder / f"turning_full_{k}.pkl", "wb") as f:
+        pickle.dump(
+            {
+                "fly_pos": fly_pos.tolist(),
+                "fly_angs": fly_angs.tolist(),
+                "fly_orientation": fly_orientations.tolist(),
+            },
+            f
+        )
+
     if nmf.sim_params.render_mode == "saved":
         nmf.save_video(out_folder / f"turning_{k}.mp4", stabilization_time=0)
     if make_traj_plots:
