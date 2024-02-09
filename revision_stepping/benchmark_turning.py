@@ -5,6 +5,8 @@ import flygym.mujoco
 import flygym.mujoco.preprogrammed
 from flygym.mujoco.examples.turning_controller import HybridTurningNMF
 from flygym.mujoco.examples.common import PreprogrammedSteps
+from flygym.common import get_data_path
+
 from tqdm import trange
 from pathlib import Path
 import cv2
@@ -14,14 +16,14 @@ import cv2
 
 debug = False
 ADHESION = True
-use_old_data = True
+use_old_data = False
 plot_first = True
 
 arrow_scaling = 2
 arrow_width = 0.1
 
 psi_base_phase = np.pi
-n_pts = 200
+n_pts = 4
 run_time = 1.5
 turning_duration = 0.5
 straight_run_time = 0.5
@@ -36,7 +38,8 @@ conv_coef_scale = 2.0
 
 
 def main():
-    single_step_path = Path("data/single_step_datasets/RF_0swing_RM_0stance_LH_1stance.pkl")
+    old_step_path = get_data_path("flygym", "data") / "behavior/single_steps.pkl"
+
     out_folder = Path("data/benchmark_turning")
     folder_name = "benchmark_turning"
     folder_name += "_adhesion" if ADHESION else ""
@@ -47,21 +50,17 @@ def main():
 
     if use_old_data:
         sim_params = flygym.mujoco.Parameters(
-        timestep=1e-4, render_mode="saved", render_playspeed=0.1, draw_adhesion=ADHESION, enable_adhesion=ADHESION, actuator_kp=50
+        timestep=1e-4, render_mode="saved", render_playspeed=0.1, draw_adhesion=ADHESION, enable_adhesion=ADHESION, actuator_kp=30.0, tarsus_damping=0.05, tarsus_stiffness=2.2
     )
     else:
         sim_params = flygym.mujoco.Parameters(
-            timestep=1e-4, render_mode="saved", render_playspeed=0.1, draw_adhesion=ADHESION, enable_adhesion=ADHESION, actuator_kp=50, tarsus_damping=10.0, tarsus_stiffness=10.0
+            timestep=1e-4, render_mode="saved", render_playspeed=0.1, draw_adhesion=ADHESION, enable_adhesion=ADHESION, actuator_kp=30.0, tarsus_damping=10.0, tarsus_stiffness=10.0
         )
     if use_old_data:
-        preprogrammed_steps = PreprogrammedSteps()
+        preprogrammed_steps = PreprogrammedSteps(path=old_step_path, 
+                                                 neutral_pos_indexes = np.zeros(6, dtype=int))
     else:
-        preprogrammed_steps = PreprogrammedSteps(path=single_step_path, 
-                                                 neutral_pos_indexes = np.ones(6)*np.pi)
-    
-    #preprogrammed_steps.neutral_pos = {
-    #        leg: preprogrammed_steps._psi_funcs[leg](psi_base_phase)[:, np.newaxis] for leg in preprogrammed_steps.legs
-    #    }
+        preprogrammed_steps = PreprogrammedSteps()
     
     np.random.seed(0)
     turn_start_times = np.random.uniform(straight_run_time, run_time - turning_duration - post_turn_time, size=n_pts)

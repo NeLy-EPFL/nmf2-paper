@@ -5,6 +5,7 @@ import flygym.mujoco
 import flygym.mujoco.preprogrammed
 from flygym.mujoco.examples.turning_controller import HybridTurningNMF
 from flygym.mujoco.examples.common import PreprogrammedSteps
+from flygym.common import get_data_path
 import tqdm
 from pathlib import Path
 import cv2
@@ -24,8 +25,8 @@ adhesion = True
 new_stiffness = 10.0
 new_damping = 10.0
 timestep = 1e-4
-render_mode = "headless"
-acutator_kp = 50
+render_mode = "saved"
+acutator_kp = 30.0
 
 contact_sensor_placements = [
     f"{leg}{segment}"
@@ -37,9 +38,8 @@ convergence_coef_val = 2.0
 target_num_steps = int(run_time / timestep)
 
 # define the step
-use_old_data = False
-new_step_path = Path("data/single_step_datasets/RF_0stance_RM_0swing_LH_0swing.pkl")
-new_data_psi_base_phase = np.pi
+use_old_data = True
+old_step_path = get_data_path("flygym", "data") / "behavior/single_steps.pkl"
 
 # define the visaulization parameters
 arrow_scaling = 2
@@ -67,16 +67,17 @@ def initialize_nmf():
         sim_params = flygym.mujoco.Parameters(
             timestep=1e-4, render_mode=render_mode, render_playspeed=0.1,
             draw_adhesion=adhesion, enable_adhesion=adhesion,
-            actuator_kp=acutator_kp
+            actuator_kp=acutator_kp, tarsus_damping=0.05, tarsus_stiffness=2.2
             )
-        preprogrammed_steps = PreprogrammedSteps()
+        preprogrammed_steps = PreprogrammedSteps(path=old_step_path, 
+                                                 neutral_pos_indexes = np.zeros(6, dtype=int))
     else:
         sim_params = flygym.mujoco.Parameters(
             timestep=1e-4, render_mode=render_mode, render_playspeed=0.1,
-            draw_adhesion=adhesion, enable_adhesion=adhesion, actuator_kp=acutator_kp, tarsus_damping=new_damping, tarsus_stiffness=new_stiffness
+            draw_adhesion=adhesion, enable_adhesion=adhesion, actuator_kp=acutator_kp
         )
-        preprogrammed_steps = PreprogrammedSteps(path=new_step_path,
-                                                    neutral_pos_indexes = np.ones(6)*new_data_psi_base_phase)
+        preprogrammed_steps = PreprogrammedSteps()
+    
     nmf = HybridTurningNMF(
         xml = "mjcf_model" if use_old_data else "mjcf_ikpy_model",
         init_pose = "stretch",
