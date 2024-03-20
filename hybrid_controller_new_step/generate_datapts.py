@@ -241,13 +241,12 @@ def run_experiment(seed, pos, arena_type, out_path):
     cpg_network.random_state = np.random.RandomState(seed)
     cpg_network.reset()
     try:
-        raise PhysicsError
         cpg_obs_list = run_cpg_simulation(sim, cpg_network, preprogrammed_steps, run_time, range_meth=range)
         print(f"CPG experiment {seed}: {cpg_obs_list[-1]['fly'][0] - pos}")
         cam.save_video(video_base_path / "cpg" / f"exp_{seed}_{pos_str}.mp4", 0)
     except PhysicsError:
         print(f"Physics error in CPG experiment {seed}, skipping")
-        #cam.save_video(video_base_path / "cpg" / f"exp_{seed}_{pos_str}.mp4", 0)
+        cam.save_video(video_base_path / "cpg" / f"exp_{seed}_{pos_str}.mp4", 0)
         cpg_obs_list = []
     with open(out_path / "cpg" / f"exp_{seed}_{pos_str}.pkl", "wb") as f:
         pickle.dump(cpg_obs_list, f)
@@ -261,13 +260,12 @@ def run_experiment(seed, pos, arena_type, out_path):
                 )
     np.random.seed(seed)
     try:
-        raise PhysicsError
         rule_based_obs_list = run_rule_based_simulation(sim, controller, run_time, range_meth=range)
         print(f"Rule based experiment {seed}: {rule_based_obs_list[-1]['fly'][0] - pos}")
         cam.save_video(video_base_path / "rule_based" / f"exp_{seed}_{pos_str}.mp4", 0)
     except PhysicsError:
         print(f"Physics error in rule based experiment {seed}, skipping")
-        #cam.save_video(video_base_path / "rule_based" / f"exp_{seed}_{pos_str}.mp4", 0)
+        cam.save_video(video_base_path / "rule_based" / f"exp_{seed}_{pos_str}.mp4", 0)
         rule_based_obs_list = []
     # Save the data
     with open(out_path / "rule_based" / f"exp_{seed}_{pos_str}.pkl", "wb") as f:
@@ -305,6 +303,7 @@ def main(args):
     arena_type = args.arena
     n_procs = args.n_procs
     out_path = out_folder / arena_type
+    video_base_path = video_base_path / arena_type
     for cont in ["cpg", "rule_based", "hybrid"]:
         (out_path / cont).mkdir(parents=True, exist_ok=True)
         (video_base_path / cont).mkdir(parents=True, exist_ok=True)
