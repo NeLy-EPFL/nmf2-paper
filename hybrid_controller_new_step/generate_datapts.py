@@ -28,8 +28,6 @@ out_folder.mkdir(parents=True, exist_ok=True)
 video_base_path = out_folder / "videos"
 ENVIRONEMENT_SEED = 0
 
-
-
 ########### SIM PARAMS ############
 Z_SPAWN_POS = 0.5
 
@@ -302,11 +300,10 @@ def main(args):
 
     arena_type = args.arena
     n_procs = args.n_procs
-    out_path = out_folder / arena_type
-    video_base_path = video_base_path / arena_type
+    out_path = args.out_folder
     for cont in ["cpg", "rule_based", "hybrid"]:
         (out_path / cont).mkdir(parents=True, exist_ok=True)
-        (video_base_path / cont).mkdir(parents=True, exist_ok=True)
+        (video_base_path / arena_type / cont).mkdir(parents=True, exist_ok=True)
 
     np.random.seed(ENVIRONEMENT_SEED)
 
