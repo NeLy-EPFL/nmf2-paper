@@ -32,7 +32,7 @@ ENVIRONEMENT_SEED = 0
 Z_SPAWN_POS = 0.5
 
 timestep = 1e-4
-run_time = 1.0
+run_time = 1.5
 
 ########### CPG PARAMS ############
 intrinsic_freqs = np.ones(6) * 12
@@ -62,12 +62,14 @@ rules_graph = construct_rules_graph()
 
 ########### HYBRID PARAMS ############
 correction_vectors = {
-    # "leg pos": (Coxa, Coxa_roll, Coxa_yaw, Femur, Fimur_roll, Tibia, Tarsus1)
+    # "leg pos": (Coxa, Coxa_roll, Coxa_yaw, Femur, Femur_roll, Tibia, Tarsus1)
     # unit: radian
-    "F": np.array([0, 0, 0, -0.02, 0, 0.016, 0]),
-    "M": np.array([-0.015, 0, 0, 0.004, 0, 0.01, -0.008]),
+    "F": np.array([0, 0, 0, -0.02, 0, 0.016, 0.01]),
+    "M": np.array([-0.015, 0, 0.05, 0.004, 0, 0.01, -0.008]),
     "H": np.array([0, 0, 0, -0.01, 0, 0.005, 0]),
 }
+
+right_leg_inversion = [1, -1, -1, 1, -1, 1, 1]
 
 stumbling_force_threshold = -1
 
@@ -170,6 +172,8 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
                 leg, cpg_network.curr_phases[i], cpg_network.curr_magnitudes[i]
             )
             net_correction = min(net_correction, max_increment)
+            if leg[0] == "R":
+                net_correction *= right_leg_inversion[i]
 
             my_joints_angles += net_correction * correction_vectors[leg[1]]
             joints_angles.append(my_joints_angles)
@@ -241,10 +245,11 @@ def run_experiment(seed, pos, arena_type, out_path):
     try:
         cpg_obs_list = run_cpg_simulation(sim, cpg_network, preprogrammed_steps, run_time, range_meth=range)
         print(f"CPG experiment {seed}: {cpg_obs_list[-1]['fly'][0] - pos}")
-        cam.save_video(video_base_path / "cpg" / f"exp_{seed}_{pos_str}.mp4", 0)
+        cam.save_video(video_base_path / arena_type  / "cpg" / f"exp_{seed}_{pos_str}.mp4", 0)
     except PhysicsError:
         print(f"Physics error in CPG experiment {seed}, skipping")
-        cam.save_video(video_base_path / "cpg" / f"exp_{seed}_{pos_str}.mp4", 0)
+        if len(cam._frames) > 0:
+            cam.save_video(video_base_path / arena_type  / "cpg" / f"exp_{seed}_{pos_str}.mp4", 0)
         cpg_obs_list = []
     with open(out_path / "cpg" / f"exp_{seed}_{pos_str}.pkl", "wb") as f:
         pickle.dump(cpg_obs_list, f)
@@ -260,10 +265,11 @@ def run_experiment(seed, pos, arena_type, out_path):
     try:
         rule_based_obs_list = run_rule_based_simulation(sim, controller, run_time, range_meth=range)
         print(f"Rule based experiment {seed}: {rule_based_obs_list[-1]['fly'][0] - pos}")
-        cam.save_video(video_base_path / "rule_based" / f"exp_{seed}_{pos_str}.mp4", 0)
+        cam.save_video(video_base_path / arena_type  / "rule_based" / f"exp_{seed}_{pos_str}.mp4", 0)
     except PhysicsError:
         print(f"Physics error in rule based experiment {seed}, skipping")
-        cam.save_video(video_base_path / "rule_based" / f"exp_{seed}_{pos_str}.mp4", 0)
+        if len(cam._frames) > 0:
+            cam.save_video(video_base_path / arena_type  / "rule_based" / f"exp_{seed}_{pos_str}.mp4", 0)
         rule_based_obs_list = []
     # Save the data
     with open(out_path / "rule_based" / f"exp_{seed}_{pos_str}.pkl", "wb") as f:
@@ -276,11 +282,11 @@ def run_experiment(seed, pos, arena_type, out_path):
     try: 
         hybrid_obs_list = run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time)
         print(f"Hybrid experiment {seed}: {hybrid_obs_list[-1]['fly'][0] - pos}")
-        cam.save_video(video_base_path / "hybrid" / f"exp_{seed}_{pos_str}.mp4", 0)
+        cam.save_video(video_base_path / arena_type / "hybrid" / f"exp_{seed}_{pos_str}.mp4", 0)
     except PhysicsError:
         print(f"Physics error in hybrid experiment {seed}, skipping")
-        cam.render()
-        cam.save_video(video_base_path / "hybrid" / f"exp_{seed}_{pos_str}.mp4", 0)
+        if len(cam._frames) > 0:
+            cam.save_video(video_base_path / arena_type  / "hybrid" / f"exp_{seed}_{pos_str}.mp4", 0)
         hybrid_obs_list = []
     
     # Save the data
