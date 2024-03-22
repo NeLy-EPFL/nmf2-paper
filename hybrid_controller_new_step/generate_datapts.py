@@ -255,13 +255,16 @@ def run_experiment(seed, pos, arena_type, out_path):
         pickle.dump(cpg_obs_list, f)
 
     # run rule based simulation
+    np.random.seed(seed)
+    sim.reset()
     controller = RuleBasedSteppingCoordinator(
                     timestep=timestep,
                     rules_graph=rules_graph,
                     weights=weights,
                     preprogrammed_steps=preprogrammed_steps,
+                    seed=seed,
                 )
-    np.random.seed(seed)
+    
     try:
         rule_based_obs_list = run_rule_based_simulation(sim, controller, run_time, range_meth=range)
         print(f"Rule based experiment {seed}: {rule_based_obs_list[-1]['fly'][0] - pos}")
@@ -277,6 +280,7 @@ def run_experiment(seed, pos, arena_type, out_path):
 
     # run hybrid simulation
     np.random.seed(seed)
+    sim.reset()
     cpg_network.random_state = np.random.RandomState(seed)
     cpg_network.reset()
     try: 
@@ -325,7 +329,7 @@ def main(args):
     positions[:, 1] = positions[:, 1] * max_y - shift_y
     positions[:, 2] = Z_SPAWN_POS
 
-    internal_seeds = np.zeros(args.n_exp, dtype=int)
+    internal_seeds = np.arange(args.n_exp)
     assert args.n_exp <= len(internal_seeds), "Not enough internal seeds defined"
     internal_seeds = internal_seeds[: args.n_exp]
     
