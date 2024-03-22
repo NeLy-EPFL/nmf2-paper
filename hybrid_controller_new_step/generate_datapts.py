@@ -32,7 +32,7 @@ ENVIRONEMENT_SEED = 0
 Z_SPAWN_POS = 0.5
 
 timestep = 1e-4
-run_time = 1.5
+run_time = 3.0
 
 ########### CPG PARAMS ############
 intrinsic_freqs = np.ones(6) * 12
@@ -65,7 +65,7 @@ correction_vectors = {
     # "leg pos": (Coxa, Coxa_roll, Coxa_yaw, Femur, Femur_roll, Tibia, Tarsus1)
     # unit: radian
     "F": np.array([0, 0, 0, -0.02, 0, 0.016, 0.01]),
-    "M": np.array([-0.015, 0, 0.05, 0.004, 0, 0.01, -0.008]),
+    "M": np.array([-0.015, 0, 0.025, 0.004, 0, 0.01, -0.008]),
     "H": np.array([0, 0, 0, -0.01, 0, 0.005, 0]),
 }
 
