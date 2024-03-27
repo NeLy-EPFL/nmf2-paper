@@ -32,7 +32,7 @@ ENVIRONEMENT_SEED = 0
 Z_SPAWN_POS = 0.5
 
 timestep = 1e-4
-run_time = 3.0
+run_time = 1.5
 
 ########### CPG PARAMS ############
 intrinsic_freqs = np.ones(6) * 12
@@ -65,7 +65,7 @@ correction_vectors = {
     # "leg pos": (Coxa, Coxa_roll, Coxa_yaw, Femur, Femur_roll, Tibia, Tarsus1)
     # unit: radian
     "F": np.array([0, 0, 0, -0.02, 0, 0.016, 0.01]),
-    "M": np.array([-0.015, 0, 0.025, 0.004, 0, 0.01, -0.008]),
+    "M": np.array([-0.015, 0.001, 0.2, 0.004, 0, 0.01, -0.008]),
     "H": np.array([0, 0, 0, -0.01, 0, 0.005, 0]),
 }
 
@@ -254,30 +254,6 @@ def run_experiment(seed, pos, arena_type, out_path):
     with open(out_path / "cpg" / f"exp_{seed}_{pos_str}.pkl", "wb") as f:
         pickle.dump(cpg_obs_list, f)
 
-    # run rule based simulation
-    np.random.seed(seed)
-    sim.reset()
-    controller = RuleBasedSteppingCoordinator(
-                    timestep=timestep,
-                    rules_graph=rules_graph,
-                    weights=weights,
-                    preprogrammed_steps=preprogrammed_steps,
-                    seed=seed,
-                )
-    
-    try:
-        rule_based_obs_list = run_rule_based_simulation(sim, controller, run_time, range_meth=range)
-        print(f"Rule based experiment {seed}: {rule_based_obs_list[-1]['fly'][0] - pos}")
-        cam.save_video(video_base_path / arena_type  / "rule_based" / f"exp_{seed}_{pos_str}.mp4", 0)
-    except PhysicsError:
-        print(f"Physics error in rule based experiment {seed}, skipping")
-        if len(cam._frames) > 0:
-            cam.save_video(video_base_path / arena_type  / "rule_based" / f"exp_{seed}_{pos_str}.mp4", 0)
-        rule_based_obs_list = []
-    # Save the data
-    with open(out_path / "rule_based" / f"exp_{seed}_{pos_str}.pkl", "wb") as f:
-        pickle.dump(rule_based_obs_list, f)
-
     # run hybrid simulation
     np.random.seed(seed)
     sim.reset()
@@ -296,6 +272,32 @@ def run_experiment(seed, pos, arena_type, out_path):
     # Save the data
     with open(out_path / "hybrid" / f"exp_{seed}_{pos_str}.pkl", "wb") as f:
         pickle.dump(hybrid_obs_list, f)
+
+    # run rule based simulation
+        
+    
+    preprogrammed_steps.duration /= 2.0
+    controller = RuleBasedSteppingCoordinator(
+                    timestep=timestep,
+                    rules_graph=rules_graph,
+                    weights=weights,
+                    preprogrammed_steps=preprogrammed_steps,
+                )
+    np.random.seed(seed)
+    sim.reset()
+    
+    try:
+        rule_based_obs_list = run_rule_based_simulation(sim, controller, run_time, range_meth=range)
+        print(f"Rule based experiment {seed}: {rule_based_obs_list[-1]['fly'][0] - pos}")
+        cam.save_video(video_base_path / arena_type  / "rule_based" / f"exp_{seed}_{pos_str}.mp4", 0)
+    except PhysicsError:
+        print(f"Physics error in rule based experiment {seed}, skipping")
+        if len(cam._frames) > 0:
+            cam.save_video(video_base_path / arena_type  / "rule_based" / f"exp_{seed}_{pos_str}.mp4", 0)
+        rule_based_obs_list = []
+    # Save the data
+    with open(out_path / "rule_based" / f"exp_{seed}_{pos_str}.pkl", "wb") as f:
+        pickle.dump(rule_based_obs_list, f)
 
 
 ########### MAIN ############
@@ -329,7 +331,7 @@ def main(args):
     positions[:, 1] = positions[:, 1] * max_y - shift_y
     positions[:, 2] = Z_SPAWN_POS
 
-    internal_seeds = np.arange(args.n_exp)
+    internal_seeds = np.zeros(args.n_exp, dtype=int)
     assert args.n_exp <= len(internal_seeds), "Not enough internal seeds defined"
     internal_seeds = internal_seeds[: args.n_exp]
     
