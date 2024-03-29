@@ -7,11 +7,10 @@ import multiprocessing
 import time
 
 
-from flygym.examples.cpg_controller import CPGNetwork, run_cpg_simulation
+from flygym.examples.cpg_controller import CPGNetwork
 from flygym.examples.rule_based_controller import (
     RuleBasedSteppingCoordinator,
     construct_rules_graph,
-    run_rule_based_simulation,
 )
 from flygym import Fly, Camera, SingleFlySimulation
 from flygym.examples import PreprogrammedSteps
@@ -52,6 +51,7 @@ coupling_weights = (phase_biases > 0) * 10
 convergence_coefs = np.ones(6) * 20
 
 ########### RULE BASED PARAMS ############
+rule_based_step_dur = 1/np.mean(intrinsic_freqs)
 weights = {
             "rule1": -10,
             "rule2_ipsi": 2.5,
@@ -114,6 +114,8 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
     retraction_perisitance_counter = np.zeros(6)
 
     retraction_persistance_counter_hist = np.zeros((6, target_num_steps))
+
+    physics_error = False
 
     for k in range(target_num_steps):
         # retraction rule: does a leg need to be retracted from a hole?
@@ -192,13 +194,76 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
             "joints": np.array(np.concatenate(joints_angles)),
             "adhesion": np.array(adhesion_onoff).astype(int),
         }
-
-        obs, reward, terminated, truncated, info = sim.step(action)
-        obs_list.append(obs)
-
-        sim.render()
+        try:
+            obs, reward, terminated, truncated, info = sim.step(action)
+            obs_list.append(obs)
+            sim.render()
+        except PhysicsError:            
+            break 
+            physics_error = True
         
-    return obs_list
+    return obs_list, physics_error
+
+def run_rule_based_simulation(sim, controller, run_time):
+    obs, info = sim.reset()
+    obs_list = []
+    physic_error = False
+    for _ in range(int(run_time / sim.timestep)):
+        controller.step()
+        joint_angles = []
+        adhesion_onoff = []
+        for leg, phase in zip(controller.legs, controller.leg_phases):
+            joint_angles_arr = controller.preprogrammed_steps.get_joint_angles(
+                leg, phase
+            )
+            joint_angles.append(joint_angles_arr.flatten())
+            adhesion_onoff.append(
+                controller.preprogrammed_steps.get_adhesion_onoff(leg, phase)
+            )
+        action = {
+            "joints": np.concatenate(joint_angles),
+            "adhesion": np.array(adhesion_onoff),
+        }
+        try:
+            obs, reward, terminated, truncated, info = sim.step(action)
+            obs_list.append(obs)
+            sim.render()
+        except PhysicsError:
+            physic_error = True
+            break
+
+    return obs_list, physic_error
+
+def run_cpg_simulation(nmf, cpg_network, preprogrammed_steps, run_time):
+    obs, info = nmf.reset()
+    obs_list = []
+    physics_error = False
+    for _ in range(int(run_time / nmf.timestep)):
+        cpg_network.step()
+        joints_angles = []
+        adhesion_onoff = []
+        for i, leg in enumerate(preprogrammed_steps.legs):
+            my_joints_angles = preprogrammed_steps.get_joint_angles(
+                leg, cpg_network.curr_phases[i], cpg_network.curr_magnitudes[i]
+            )
+            joints_angles.append(my_joints_angles)
+            my_adhesion_onoff = preprogrammed_steps.get_adhesion_onoff(
+                leg, cpg_network.curr_phases[i]
+            )
+            adhesion_onoff.append(my_adhesion_onoff)
+        action = {
+            "joints": np.array(np.concatenate(joints_angles)),
+            "adhesion": np.array(adhesion_onoff).astype(int),
+        }
+        try:
+            obs, reward, terminated, truncated, info = nmf.step(action)
+            nmf.render()
+            obs_list.append(obs)
+        except PhysicsError:
+            physics_error = True
+            break
+    return obs_list, physics_error
+
     
 def run_experiment(seed, pos, arena_type, out_path):
 
@@ -243,15 +308,16 @@ def run_experiment(seed, pos, arena_type, out_path):
     )
     cpg_network.random_state = np.random.RandomState(seed)
     cpg_network.reset()
-    try:
-        cpg_obs_list = run_cpg_simulation(sim, cpg_network, preprogrammed_steps, run_time, range_meth=range)
-        print(f"CPG experiment {seed}: {cpg_obs_list[-1]['fly'][0] - pos}")
-        cam.save_video(video_base_path / arena_type  / "cpg" / f"exp_{seed}_{pos_str}.mp4", 0)
-    except PhysicsError:
-        print(f"Physics error in CPG experiment {seed}, skipping")
-        if len(cam._frames) > 0:
+    cpg_obs_list, cpg_phys_error = run_cpg_simulation(sim, cpg_network, preprogrammed_steps, run_time)
+    print(f"CPG experiment {seed}: {cpg_obs_list[-1]['fly'][0] - cpg_obs_list[-1]['fly'][0]}", end="")
+    if cpg_phys_error:
+         print(" ended with physics error")
+         if len(cpg_obs_list) > 0:
             cam.save_video(video_base_path / arena_type  / "cpg" / f"exp_{seed}_{pos_str}.mp4", 0)
-        cpg_obs_list = []
+    else:
+        print("")
+        cam.save_video(video_base_path / arena_type  / "cpg" / f"exp_{seed}_{pos_str}.mp4", 0)
+
     with open(out_path / "cpg" / f"exp_{seed}_{pos_str}.pkl", "wb") as f:
         pickle.dump(cpg_obs_list, f)
 
@@ -260,24 +326,21 @@ def run_experiment(seed, pos, arena_type, out_path):
     sim.reset()
     cpg_network.random_state = np.random.RandomState(seed)
     cpg_network.reset()
-    try: 
-        hybrid_obs_list = run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time)
-        print(f"Hybrid experiment {seed}: {hybrid_obs_list[-1]['fly'][0] - pos}")
-        cam.save_video(video_base_path / arena_type / "hybrid" / f"exp_{seed}_{pos_str}.mp4", 0)
-    except PhysicsError:
-        print(f"Physics error in hybrid experiment {seed}, skipping")
-        if len(cam._frames) > 0:
+    hybrid_obs_list, hybrid_physics_error = run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time)
+    print(f"Hybrid experiment {seed}: {hybrid_obs_list[-1]['fly'][0] - hybrid_obs_list[-1]['fly'][0]}", end="")
+    if hybrid_physics_error:
+         print(" ended with physics error")
+         if len(hybrid_obs_list) > 0:
             cam.save_video(video_base_path / arena_type  / "hybrid" / f"exp_{seed}_{pos_str}.mp4", 0)
-        hybrid_obs_list = []
-    
+    else:
+        print("")
+        cam.save_video(video_base_path / arena_type  / "hybrid" / f"exp_{seed}_{pos_str}.mp4", 0) 
     # Save the data
     with open(out_path / "hybrid" / f"exp_{seed}_{pos_str}.pkl", "wb") as f:
         pickle.dump(hybrid_obs_list, f)
 
-    # run rule based simulation
-        
-    
-    preprogrammed_steps.duration /= 2.0
+    # run rule based simulation    
+    preprogrammed_steps.duration = rule_based_step_dur
     controller = RuleBasedSteppingCoordinator(
                     timestep=timestep,
                     rules_graph=rules_graph,
@@ -287,15 +350,15 @@ def run_experiment(seed, pos, arena_type, out_path):
     np.random.seed(seed)
     sim.reset()
     
-    try:
-        rule_based_obs_list = run_rule_based_simulation(sim, controller, run_time, range_meth=range)
-        print(f"Rule based experiment {seed}: {rule_based_obs_list[-1]['fly'][0] - pos}")
-        cam.save_video(video_base_path / arena_type  / "rule_based" / f"exp_{seed}_{pos_str}.mp4", 0)
-    except PhysicsError:
-        print(f"Physics error in rule based experiment {seed}, skipping")
-        if len(cam._frames) > 0:
+    rule_based_obs_list, ruled_based_physics_error = run_rule_based_simulation(sim, controller, run_time)
+    print(f"Rule based experiment {seed}: {rule_based_obs_list[-1]['fly'][0] - rule_based_obs_list[-1]['fly'][0]}", end="")
+    if ruled_based_physics_error:
+         print(" ended with physics error")
+         if len(rule_based_obs_list) > 0:
             cam.save_video(video_base_path / arena_type  / "rule_based" / f"exp_{seed}_{pos_str}.mp4", 0)
-        rule_based_obs_list = []
+    else:
+        print("")
+        cam.save_video(video_base_path / arena_type  / "rule_based" / f"exp_{seed}_{pos_str}.mp4", 0) 
     # Save the data
     with open(out_path / "rule_based" / f"exp_{seed}_{pos_str}.pkl", "wb") as f:
         pickle.dump(rule_based_obs_list, f)
