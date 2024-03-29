@@ -18,6 +18,7 @@ from flygym.examples import PreprogrammedSteps
 from flygym.arena import FlatTerrain, GappedTerrain, BlocksTerrain, MixedTerrain
 
 from dm_control.rl.control import PhysicsError
+from scipy.interpolate import CubicSpline
 
 import yaml
 
@@ -64,9 +65,9 @@ rules_graph = construct_rules_graph()
 correction_vectors = {
     # "leg pos": (Coxa, Coxa_roll, Coxa_yaw, Femur, Femur_roll, Tibia, Tarsus1)
     # unit: radian
-    "F": np.array([0, 0, 0, -0.02, 0, 0.016, 0.01]),
-    "M": np.array([-0.015, 0.001, 0.2, 0.004, 0, 0.01, -0.008]),
-    "H": np.array([0, 0, 0, -0.01, 0, 0.005, 0]),
+    "F": np.array([-0.03, 0, 0, -0.03, 0, 0.03, 0.03]),
+    "M": np.array([-0.015, 0.001, 0.025, -0.02, 0, -0.02, 0.0]),
+    "H": np.array([0, 0, 0, -0.02, 0, 0.01, -0.02]),
 }
 
 right_leg_inversion = [1, -1, -1, 1, -1, 1, 1]
@@ -91,8 +92,8 @@ def get_arena(arena_type):
     elif arena_type == "mixed":
         return MixedTerrain(rand_seed=ENVIRONEMENT_SEED)  # seed for randomized block heights
 
-def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time): 
-    
+def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
+
     retraction_correction = np.zeros(6)
     stumbling_correction = np.zeros(6)
 
@@ -171,10 +172,10 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
             my_joints_angles = preprogrammed_steps.get_joint_angles(
                 leg, cpg_network.curr_phases[i], cpg_network.curr_magnitudes[i]
             )
-            net_correction = min(net_correction, max_increment)
+            net_correction = np.clip(net_correction, 0, max_increment)
             if leg[0] == "R":
                 net_correction *= right_leg_inversion[i]
-
+            
             my_joints_angles += net_correction * correction_vectors[leg[1]]
             joints_angles.append(my_joints_angles)
 
@@ -331,7 +332,7 @@ def main(args):
     positions[:, 1] = positions[:, 1] * max_y - shift_y
     positions[:, 2] = Z_SPAWN_POS
 
-    internal_seeds = np.zeros(args.n_exp, dtype=int)
+    internal_seeds = np.arange(args.n_exp, dtype=int)
     assert args.n_exp <= len(internal_seeds), "Not enough internal seeds defined"
     internal_seeds = internal_seeds[: args.n_exp]
     
