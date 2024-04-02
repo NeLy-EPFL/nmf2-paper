@@ -10,12 +10,12 @@ svid4="${video_dir}/Video4_CPG/video_4_cpg_controller_v8_TL.mp4"
 svid5="${video_dir}/Video5_RuleBased/video_5_rule_based_controller_v7_TL.mp4"
 svid8_no_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_no_stable_v14_TL.mp4"
 svid8_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_stable_v14_TL.mp4"
-svid9="${video_dir}/Video9_OdorTaxis/video_9_odor_taxis_v6_TL.mp4"
+svid9="${video_dir}/Video9_OdorTaxis/video_9_odor_taxis_v7_TL.mp4"
 
-edfig2="${figure_dir}/EDFig2_PreprogrammedStepping/edfig2_preprogrammed_stepping_v6_TL.pdf"
-fig3visual_no_stable="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_visual_taxis_no_stable_v12_TL.pdf"
-fig3visual_stable="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_visual_taxis_stable_v12_TL.pdf"
-fig3odor="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_odor_taxis_v12_TL.pdf"
+edfig2="${figure_dir}/EDFig2_PreprogrammedStepping/edfig2_preprogrammed_stepping_v7_TL.pdf"
+fig3visual_no_stable="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_visual_taxis_no_stable_v14_TL.pdf"
+fig3visual_stable="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_visual_taxis_stable_v14_TL.pdf"
+fig3odor="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_odor_taxis_v14_TL.pdf"
 
 mkdir -p "$(dirname $svid1)"
 mkdir -p "$(dirname $svid2)"
@@ -101,13 +101,13 @@ if [ ! -f $svid8_stable ] || [ ! -f $fig3visual_stable ]; then
     cd ..
 fi
 
-# # supplementary video 9
-# if [ ! -f $svid9 ] || [ ! -f $fig3odor ]; then
-#     cd odor_inputs
-#     jupyter nbconvert --to script odor_taxis.ipynb
-#     python odor_taxis.py
-#     rm odor_taxis.py
-#     cd ..
-#     mv odor_inputs/outputs/odor_taxis.mp4 $svid9
-#     mv odor_inputs/outputs/odor_taxis.pdf $fig3odor
-# fi
+# supplementary video 9
+if [ ! -f $svid9 ] || [ ! -f $fig3odor ]; then
+    cd odor_inputs
+    jupyter nbconvert --to script odor_taxis.ipynb
+    python odor_taxis.py
+    rm odor_taxis.py
+    mv outputs/odor_taxis.mp4 "../$svid9"
+    mv outputs/odor_taxis.pdf "../$fig3odor"
+    cd ..
+fi
