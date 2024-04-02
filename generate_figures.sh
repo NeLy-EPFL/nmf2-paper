@@ -7,7 +7,7 @@ svid1="${video_dir}/Video1_ForcesLocomotion/video_1_force_visualization_v6_TL.mp
 svid2="${video_dir}/Video2_Climbing/video_2_climbing_v7_TL.mp4"
 svid3="${video_dir}/Video3_SingleStep/video_3_single_step_v5_TL.mp4"
 svid4="${video_dir}/Video4_CPG/video_4_cpg_controller_v8_TL.mp4"
-svid5="${video_dir}/Video5_RuleBased/video_5_rule_based_controller_v6_TL.mp4"
+svid5="${video_dir}/Video5_RuleBased/video_5_rule_based_controller_v7_TL.mp4"
 svid8_no_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_no_stable_v13_TL.mp4"
 svid8_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_stable_v13_TL.mp4"
 svid9="${video_dir}/Video9_OdorTaxis/video_9_odor_taxis_v6_TL.mp4"
@@ -70,15 +70,15 @@ if [ ! -f $svid4 ]; then
     cd ..
 fi
 
-# # supplementary video 5
-# if [ ! -f $svid5 ]; then
-#     cd control_signal
-#     jupyter nbconvert --to script decentralized_control.ipynb
-#     python decentralized_control.py
-#     rm decentralized_control.py
-#     cd ..
-#     mv control_signal/outputs/rule_based.mp4 $svid5
-# fi
+# supplementary video 5
+if [ ! -f $svid5 ]; then
+    cd control_signal
+    jupyter nbconvert --to script decentralized_control.ipynb
+    python decentralized_control.py
+    rm decentralized_control.py
+    mv outputs/rule_based.mp4 "../$svid5"
+    cd ..
+fi
 
 # # supplementary video 8
 # if [ ! -f $svid8_no_stable ] || [ ! -f $fig3visual_no_stable ]; then
