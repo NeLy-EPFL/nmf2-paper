@@ -4,7 +4,7 @@ video_dir="_outputs/VIDEOS"
 figure_dir="_outputs/FIGURES"
 
 svid1="${video_dir}/Video1_ForcesLocomotion/video_1_force_visualization_v6_TL.mp4"
-svid2="${video_dir}/Video2_Climbing/video_2_climbing_v6_TL.mp4"
+svid2="${video_dir}/Video2_Climbing/video_2_climbing_v7_TL.mp4"
 svid3="${video_dir}/Video3_SingleStep/video_3_single_step_v4_TL.mp4"
 svid4="${video_dir}/Video4_CPG/video_4_cpg_controller_v7_TL.mp4"
 svid5="${video_dir}/Video5_RuleBased/video_5_rule_based_controller_v6_TL.mp4"
@@ -40,11 +40,14 @@ if [ ! -f $svid1 ]; then
     cd ..
 fi
 
-# # supplementary video 2
-# if [ ! -f $svid2 ]; then
-#     python leg_adhesion/generate_slope_datapts.py
-#     python leg_adhesion/merge_videos.py $svid2
-# fi
+# supplementary video 2
+if [ ! -f $svid2 ]; then
+    cd leg_adhesion
+    python generate_slope_datapts.py
+    python merge_videos.py
+    mv data/slope_front/climbing.mp4 "../$svid2"
+    cd ..
+fi
 
 # # supplementary video 3
 # if [ ! -f $svid3 ] || [ ! -f $edfig2 ] ; then

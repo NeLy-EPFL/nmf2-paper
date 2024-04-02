@@ -1,11 +1,15 @@
 import cv2
 import numpy as np
 from pathlib import Path
+import imageio
 
 
 base_path = Path("data/slope_front")
-slope_degrees = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]
-ignore_after = {20: 5, 30: 4, 40: 4, 50: 0, 60: 0, 70: 0, 80: 0, 90: 0}
+slope_degrees = np.unique(
+    [int(i.stem.split("_")[2]) for i in base_path.glob("CPG_gravity_*.mp4")]
+)
+# ignore_after = {20: 5, 30: 4, 40: 4, 50: 0, 60: 0, 70: 0, 80: 0, 90: 0}
+ignore_after = {}
 fps = None
 # gravity change time - stab duratin + initial duration dropped in rendering
 warm_up_period = 0.4 - 0.2 + 0.05
@@ -76,7 +80,9 @@ for deg in slope_degrees:
             frames_by_adhesion[adhesion].append(frame)
         cap.release()
 
-    for on_frame, off_frame in zip(frames_by_adhesion[True][:90], frames_by_adhesion[False][:90]):
+    for on_frame, off_frame in zip(
+        frames_by_adhesion[True][:90], frames_by_adhesion[False][:90]
+    ):
         frame_merged = np.zeros(
             (on_frame.shape[0] + 50, on_frame.shape[1] * 2, 3), dtype=np.uint8
         )
@@ -99,13 +105,10 @@ for deg in slope_degrees:
         frames_all.append(frame_merged)
 
 # Write video
-out = cv2.VideoWriter(
-    str(base_path / "climbing.mp4"),
-    cv2.VideoWriter_fourcc(*"mp4v"),
-    fps,
-    (frame_merged.shape[1], frame_merged.shape[0]),
-)
+Path(base_path).mkdir(exist_ok=True)
+writer = imageio.get_writer(base_path / "climbing.mp4", fps=fps)
 for frame in frames_all:
-    out.write(frame[:, :, ::-1])
-out.release()
+    writer.append_data(frame)
+
+writer.close()
 print("Finished writing merged video")
