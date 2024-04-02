@@ -8,8 +8,8 @@ svid2="${video_dir}/Video2_Climbing/video_2_climbing_v7_TL.mp4"
 svid3="${video_dir}/Video3_SingleStep/video_3_single_step_v5_TL.mp4"
 svid4="${video_dir}/Video4_CPG/video_4_cpg_controller_v8_TL.mp4"
 svid5="${video_dir}/Video5_RuleBased/video_5_rule_based_controller_v7_TL.mp4"
-svid8_no_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_no_stable_v13_TL.mp4"
-svid8_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_stable_v13_TL.mp4"
+svid8_no_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_no_stable_v14_TL.mp4"
+svid8_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_stable_v14_TL.mp4"
 svid9="${video_dir}/Video9_OdorTaxis/video_9_odor_taxis_v6_TL.mp4"
 
 edfig2="${figure_dir}/EDFig2_PreprogrammedStepping/edfig2_preprogrammed_stepping_v6_TL.pdf"
@@ -80,22 +80,26 @@ if [ ! -f $svid5 ]; then
     cd ..
 fi
 
-# # supplementary video 8
-# if [ ! -f $svid8_no_stable ] || [ ! -f $fig3visual_no_stable ]; then
-#     cd visual_inputs
-#     python visual_taxis.py 0
-#     cd ..
-#     mv visual_inputs/outputs/object_following_with_retina_images.mp4 $svid8_no_stable
-#     mv visual_inputs/outputs/visual_taxis.pdf $fig3visual_no_stable
-# fi
+# supplementary video 8
+if [ ! -f $svid8_no_stable ] || [ ! -f $fig3visual_no_stable ]; then
+    cd visual_inputs
+    jupyter nbconvert --to script visual_taxis.ipynb
+    python visual_taxis.py 0
+    rm visual_taxis.py
+    mv outputs/object_following_with_retina_images.mp4 "../$svid8_no_stable"
+    mv outputs/visual_taxis.pdf "../$fig3visual_no_stable"
+    cd ..
+fi
 
-# if [ ! -f $svid8_stable ] || [ ! -f $fig3visual_stable ]; then
-#     cd visual_inputs
-#     python visual_taxis.py 1000
-#     cd ..
-#     mv visual_inputs/outputs/object_following_with_retina_images.mp4 $svid8_stable
-#     mv visual_inputs/outputs/visual_taxis.pdf $fig3visual_stable
-# fi
+if [ ! -f $svid8_stable ] || [ ! -f $fig3visual_stable ]; then
+    cd visual_inputs
+    jupyter nbconvert --to script visual_taxis.ipynb
+    python visual_taxis.py 1000
+    rm visual_taxis.py
+    mv outputs/object_following_with_retina_images.mp4 "../$svid8_stable"
+    mv outputs/visual_taxis.pdf "../$fig3visual_stable"
+    cd ..
+fi
 
 # # supplementary video 9
 # if [ ! -f $svid9 ] || [ ! -f $fig3odor ]; then
