@@ -74,7 +74,7 @@ right_leg_inversion = [1, -1, -1, 1, -1, 1, 1]
 
 stumbling_force_threshold = -1
 
-correction_rates = {"retraction": (500, 400), "stumbling": (2000, 1900)}
+correction_rates = {"retraction": (800, 700), "stumbling": (2200, 2100)}
 max_increment = 80
 retraction_persistance = 20
 persistance_init_thr = 20
@@ -309,7 +309,7 @@ def run_experiment(seed, pos, arena_type, out_path):
     cpg_network.random_state = np.random.RandomState(seed)
     cpg_network.reset()
     cpg_obs_list, cpg_phys_error = run_cpg_simulation(sim, cpg_network, preprogrammed_steps, run_time)
-    print(f"CPG experiment {seed}: {cpg_obs_list[-1]['fly'][0] - cpg_obs_list[-1]['fly'][0]}", end="")
+    print(f"CPG experiment {seed}: {cpg_obs_list[-1]['fly'][0] - cpg_obs_list[0]['fly'][0]}", end="")
     if cpg_phys_error:
          print(" ended with physics error")
          if len(cpg_obs_list) > 0:
@@ -327,7 +327,7 @@ def run_experiment(seed, pos, arena_type, out_path):
     cpg_network.random_state = np.random.RandomState(seed)
     cpg_network.reset()
     hybrid_obs_list, hybrid_physics_error = run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time)
-    print(f"Hybrid experiment {seed}: {hybrid_obs_list[-1]['fly'][0] - hybrid_obs_list[-1]['fly'][0]}", end="")
+    print(f"Hybrid experiment {seed}: {hybrid_obs_list[-1]['fly'][0] - hybrid_obs_list[0]['fly'][0]}", end="")
     if hybrid_physics_error:
          print(" ended with physics error")
          if len(hybrid_obs_list) > 0:
@@ -351,7 +351,7 @@ def run_experiment(seed, pos, arena_type, out_path):
     sim.reset()
     
     rule_based_obs_list, ruled_based_physics_error = run_rule_based_simulation(sim, controller, run_time)
-    print(f"Rule based experiment {seed}: {rule_based_obs_list[-1]['fly'][0] - rule_based_obs_list[-1]['fly'][0]}", end="")
+    print(f"Rule based experiment {seed}: {rule_based_obs_list[-1]['fly'][0] - rule_based_obs_list[0]['fly'][0]}", end="")
     if ruled_based_physics_error:
          print(" ended with physics error")
          if len(rule_based_obs_list) > 0:
