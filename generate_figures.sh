@@ -50,15 +50,15 @@ if [ ! -f $svid2 ]; then
 fi
 
 # # supplementary video 3
-# if [ ! -f $svid3 ] || [ ! -f $edfig2 ] ; then
-#     cd ./step_data
-#     jupyter nbconvert --to script stepping_illustration.ipynb
-#     python stepping_illustration.py
-#     rm stepping_illustration.py
-#     cd ..
-#     mv step_data/outputs/single_step.mp4 $svid3
-#     mv step_data/outputs/single_step.pdf $edfig2
-# fi
+if [ ! -f $svid3 ] || [ ! -f $edfig2 ] ; then
+    cd step_data
+    jupyter nbconvert --to script stepping_illustration.ipynb
+    python stepping_illustration.py
+    rm stepping_illustration.py
+    mv outputs/single_step.mp4 "../$svid3"
+    mv outputs/single_step.pdf "../$edfig2"
+    cd ..
+fi
 
 # # supplementary video 4
 # if [ ! -f $svid4 ]; then
@@ -66,8 +66,8 @@ fi
 #     jupyter nbconvert --to script CPG_control.ipynb
 #     python CPG_control.py
 #     rm CPG_control.py
+#     mv outputs/cpg_controller.mp4 "../$svid4"
 #     cd ..
-#     mv control_signal/outputs/cpg.mp4 $svid4
 # fi
 
 # # supplementary video 5
