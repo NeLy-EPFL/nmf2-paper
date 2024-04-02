@@ -5,8 +5,8 @@ figure_dir="_outputs/FIGURES"
 
 svid1="${video_dir}/Video1_ForcesLocomotion/video_1_force_visualization_v6_TL.mp4"
 svid2="${video_dir}/Video2_Climbing/video_2_climbing_v7_TL.mp4"
-svid3="${video_dir}/Video3_SingleStep/video_3_single_step_v4_TL.mp4"
-svid4="${video_dir}/Video4_CPG/video_4_cpg_controller_v7_TL.mp4"
+svid3="${video_dir}/Video3_SingleStep/video_3_single_step_v5_TL.mp4"
+svid4="${video_dir}/Video4_CPG/video_4_cpg_controller_v8_TL.mp4"
 svid5="${video_dir}/Video5_RuleBased/video_5_rule_based_controller_v6_TL.mp4"
 svid8_no_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_no_stable_v13_TL.mp4"
 svid8_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_stable_v13_TL.mp4"
@@ -60,15 +60,15 @@ if [ ! -f $svid3 ] || [ ! -f $edfig2 ] ; then
     cd ..
 fi
 
-# # supplementary video 4
-# if [ ! -f $svid4 ]; then
-#     cd control_signal
-#     jupyter nbconvert --to script CPG_control.ipynb
-#     python CPG_control.py
-#     rm CPG_control.py
-#     mv outputs/cpg_controller.mp4 "../$svid4"
-#     cd ..
-# fi
+# supplementary video 4
+if [ ! -f $svid4 ]; then
+    cd control_signal
+    jupyter nbconvert --to script CPG_control.ipynb
+    python CPG_control.py
+    rm CPG_control.py
+    mv outputs/cpg.mp4 "../$svid4"
+    cd ..
+fi
 
 # # supplementary video 5
 # if [ ! -f $svid5 ]; then
