@@ -8,6 +8,7 @@ svid2="${video_dir}/Video2_Climbing/video_2_climbing_v7_TL.mp4"
 svid3="${video_dir}/Video3_SingleStep/video_3_single_step_v5_TL.mp4"
 svid4="${video_dir}/Video4_CPG/video_4_cpg_controller_v8_TL.mp4"
 svid5="${video_dir}/Video5_RuleBased/video_5_rule_based_controller_v7_TL.mp4"
+svid6="${video_dir}/Video6_Hybrid/video_6_hybrid_controller_v6_TL.mp4"
 svid7="${video_dir}/Video7_ControllerCompare/video_7_controller_comparison_v7_TL_small.mp4"
 
 svid8_no_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_no_stable_v14_TL.mp4"
@@ -28,11 +29,13 @@ mkdir -p "$(dirname $svid2)"
 mkdir -p "$(dirname $svid3)"
 mkdir -p "$(dirname $svid4)"
 mkdir -p "$(dirname $svid5)"
+mkdir -p "$(dirname $svid6)"
 mkdir -p "$(dirname $svid7)"
 mkdir -p "$(dirname $svid8_no_stable)"
 mkdir -p "$(dirname $svid8_stable)"
 mkdir -p "$(dirname $svid9)"
 mkdir -p "$(dirname $edfig2)"
+mkdir -p "$(dirname $edfig4)"
 mkdir -p "$(dirname $fig2comparison)"
 mkdir -p "$(dirname $fig3visual_no_stable)"
 mkdir -p "$(dirname $fig3visual_stable)"
@@ -85,6 +88,16 @@ if [ ! -f $svid5 ]; then
     python decentralized_control.py
     rm decentralized_control.py
     mv outputs/rule_based.mp4 "../$svid5"
+    cd ..
+fi
+
+# supplementary video 6
+if [ ! -f $svid6 ]; then
+    cd control_signal
+    jupyter nbconvert --to script hybrid_signal.ipynb
+    python hybrid_signal.py
+    rm hybrid_signal.py
+    mv outputs/hybrid.mp4 "../$svid6"
     cd ..
 fi
 
