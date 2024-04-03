@@ -137,7 +137,7 @@ def write_side_by_side_video(order, output_path, replay_frames, replay_timestamp
             if order == "real_fly":
                 frame_frames.append(replay_frames[key][i])
             else:
-                frame_frames.appen(replay_frames[key][i][:, :, ::-1])
+                frame_frames.append(replay_frames[key][i][:, :, ::-1])
         frame = cv2.hconcat(frame_frames)
         out.write(frame)
     

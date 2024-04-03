@@ -149,11 +149,11 @@ class GroomingCamera(Camera):
     def __init__(self, fly, **kwargs):
         super().__init__(fly, **kwargs)
         self.update_camera_pos = False
-        self._zoom_camera()
+        self._zoom_camera(fly)
 
     
-    def _zoom_camera(self):
-        if self.camera_id == "0/camera_front":
+    def _zoom_camera(self, fly):
+        if self.camera_id == f"{fly.name}/camera_front":
             self.cam_offset -= [
                 8-2.7,
                 0.0,
