@@ -15,6 +15,8 @@ svid8_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_stable_v14_TL
 svid9="${video_dir}/Video9_OdorTaxis/video_9_odor_taxis_v7_TL.mp4"
 
 edfig2="${figure_dir}/EDFig2_PreprogrammedStepping/edfig2_preprogrammed_stepping_v7_TL.pdf"
+edfig4="${figure_dir}/EDFig4_VisionModelRL/edfig4_vison_model_rl_v3_TL.pdf"
+
 fig2comparison="${figure_dir}/Fig2_AdhesionLocomotion/fig2_locomotion_v18_TL.pdf"
 
 fig3visual_no_stable="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_visual_taxis_no_stable_v14_TL.pdf"
@@ -128,5 +130,20 @@ if [ ! -f $svid9 ] || [ ! -f $fig3odor ]; then
     rm odor_taxis.py
     mv outputs/odor_taxis.mp4 "../$svid9"
     mv outputs/odor_taxis.pdf "../$fig3odor"
+    cd ..
+fi
+
+# extended data figure 4
+if [ ! -f $edfig4 ]; then
+    cd integrated_task
+    jupyter nbconvert --to script collect_visual_training_data.ipynb
+    python collect_visual_training_data.py
+    rm collect_visual_training_data.py
+
+    jupyter nbconvert --to script train_vision_model.ipynb
+    python train_vision_model.py
+    rm train_vision_model.py
+
+    mv outputs/vision_model_stats.pdf "../$edfig4"
     cd ..
 fi
