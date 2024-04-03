@@ -1,77 +1,51 @@
-import matplotlib.pyplot as plt
-import numpy as np
-import imageio
+from itertools import product
 from pathlib import Path
-from tempfile import gettempdir
-from shutil import rmtree
-from tqdm import trange
 from subprocess import run
 
+import imageio
+import matplotlib.pyplot as plt
+import numpy as np
+from decord import VideoReader
+from joblib import Parallel, delayed
 
-# Configs
-data_path = Path("data")
-controller_paths = {"CPG": "CPG", "Rule-based": "Decentralized", "Hybrid": "hybrid"}
-terrain_types = ["flat", "gapped", "blocks", "mixed"]
-enable_adhesion = True
-num_trials = 20
-output_path = Path("outputs/controller_comparison.mp4")
+controllers = ["cpg", "rule_based", "hybrid"]
+terrains = ["flat", "gapped", "blocks", "mixed"]
+n_trials = 20
+n_frames = 450
 
-
-# Index video files
-video_paths = {}
-for controller, tag in controller_paths.items():
-    for terrain in terrain_types:
-        matches = list(
-            data_path.glob(f"{terrain}_{tag}pts_adhesion{enable_adhesion}*/*.mp4")
-        )
-        matches = sorted(matches)
-        assert (
-            len(matches) == num_trials
-        ), f"Found {len(matches)} videos for {controller} on {terrain} terrain"
-        video_paths[(controller, terrain)] = matches
+s_ = np.s_[30:, ::-1]
+video_dir = Path("simulation_results/videos")
 
 
-# Load videos
-fps = None
-num_frames = None
-all_videos = {}
-for (controller, terrain), video_path in video_paths.items():
-    print(f"Loading videos for {controller} on {terrain}")
-    all_videos[(controller, terrain)] = []
-    for path in video_path:
-        vid = imageio.get_reader(path)
-        metadata = vid.get_meta_data()
-        if fps is None:
-            fps = metadata["fps"]
-        else:
-            assert fps == metadata["fps"], "FPS is not the same"
-        frames = []
-        while True:
-            try:
-                frame = vid.get_next_data()
-                frames.append(frame)
-            except IndexError:
-                break
-        if num_frames is None:
-            num_frames = len(frames)
-        else:
-            assert num_frames == len(frames), "Number of frames is not the same"
-        all_videos[(controller, terrain)].append(frames)
+def get_video_reader(trial_id, controller, terrain):
+    dir_ = video_dir / terrain / controller
+    path = next(dir_.glob(f"exp_{trial_id}_*.mp4"))
+    return VideoReader(path.as_posix())
 
 
-def draw_frame(curr_video, frame_within_video):
-    fig, axs = plt.subplots(len(controller_paths), len(terrain_types), figsize=(20, 12))
+def get_video_props():
+    video_reader = get_video_reader(0, "cpg", "flat")
+    return (*video_reader[0].asnumpy()[s_].shape[:2], video_reader.get_avg_fps())
+
+
+img_height, img_width, fps = get_video_props()
+empty_img = np.zeros((img_height, img_width, 3), dtype=np.uint8)
+
+
+def init_figure(trial_id):
+    fig, axs = plt.subplots(len(controllers), len(terrains), figsize=(20, 12))
     fig.subplots_adjust(
         left=0.1, right=0.95, top=0.9, bottom=0.05, hspace=0.03, wspace=0.03
     )
 
-    for i, controller in enumerate(controller_paths):
-        for j, terrain in enumerate(terrain_types):
+    images = np.empty((len(controllers), len(terrains)), object)
+
+    for i in range(len(controllers)):
+        for j in range(len(terrains)):
             ax = axs[i, j]
-            frame = all_videos[(controller, terrain)][curr_video][frame_within_video]
-            ax.imshow(frame[30:, ::-1, :])
+            images[i, j] = ax.imshow(empty_img)
             ax.axis("off")
-            ax.text(7, 60, f"Trial {curr_video + 1}", fontname="Helvetica", fontsize=20)
+            ax.text(7, 60, f"Trial {trial_id + 1}", fontname="Arial", fontsize=20)
 
     controller_label_config = [
         ("CPG\ncontroller", 0.7216, "#4e79a7"),
@@ -104,7 +78,7 @@ def draw_frame(curr_video, frame_within_video):
             0.92,
             text,
             transform=fig.transFigure,
-            fontsize=26.0,
+            fontsize=26,
             color=color,
             weight="bold",
             fontname="Helvetica",
@@ -121,48 +95,52 @@ def draw_frame(curr_video, frame_within_video):
         fontname="Helvetica",
         ha="center",
     )
+    return fig, images.ravel()
 
-    return fig
+
+output_dir = Path("outputs")
+output_dir.mkdir(exist_ok=True)
 
 
-# Draw individual frames
-temp_dir = Path(gettempdir()) / "controller_comparison_video"
-temp_dir.mkdir(exist_ok=True)
-print(f"Saving frames to {temp_dir}")
+def write_trial_video(trial_id, n_frames=450):
+    it = list(product(controllers, terrains))
+    video_readers = [get_video_reader(trial_id, c, t) for c, t in it]
+    fig, images = init_figure(trial_id)
 
-pause_time = 0.5
-global_counter = 0
+    with imageio.get_writer(output_dir / f"{trial_id:02d}.mp4", fps=fps) as writer:
+        for frame_id in range(n_frames):
+            for image, video_reader in zip(images, video_readers):
+                if frame_id < len(video_reader):
+                    img = video_reader[frame_id].asnumpy()[s_]
+                else:
+                    img = empty_img
+                image.set_data(img)
 
-for curr_video in range(num_trials):
-    for frame_within_video in trange(num_frames, desc=f"Trial {curr_video + 1}"):
-        fig = draw_frame(curr_video, frame_within_video)
-        plt.savefig(temp_dir / f"{global_counter:05d}.jpg")
-        plt.close(fig)
-        global_counter += 1
+            fig.canvas.draw()
+            frame = np.array(fig.canvas.buffer_rgba())[..., :3]
+            writer.append_data(frame)
 
-    # add brief pause after each trial
-    for i in range(int(pause_time * fps)):
-        fig = draw_frame(curr_video, frame_within_video)
-        plt.savefig(temp_dir / f"{global_counter:05d}.jpg")
-        plt.close(fig)
-        global_counter += 1
+
+Parallel(n_jobs=-1)(
+    delayed(write_trial_video)(trial_id) for trial_id in range(n_trials)
+)
+video_paths = [output_dir / f"{trial_id:02d}.mp4" for trial_id in range(n_trials)]
+with open(output_dir / "video_list.txt", "w") as f:
+    for path in video_paths:
+        f.write(f"file {path.relative_to(output_dir)}\n")
 
 run(
     [
         "ffmpeg",
-        "-r",
-        str(fps),
+        "-f",
+        "concat",
+        "-safe",
+        "0",
         "-i",
-        str(temp_dir / r"%05d.jpg"),
-        "-vcodec",
-        "libx264",
-        "-crf",
-        "18",
-        "-pix_fmt",
-        "yuv420p",
+        "outputs/video_list.txt",
+        "-c",
+        "copy",
+        "outputs/controller_comparison.mp4",
         "-y",
-        str(output_path),
     ]
 )
-# rmtree(temp_dir)
-# print("removing {temp_dir}")

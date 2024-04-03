@@ -8,11 +8,15 @@ svid2="${video_dir}/Video2_Climbing/video_2_climbing_v7_TL.mp4"
 svid3="${video_dir}/Video3_SingleStep/video_3_single_step_v5_TL.mp4"
 svid4="${video_dir}/Video4_CPG/video_4_cpg_controller_v8_TL.mp4"
 svid5="${video_dir}/Video5_RuleBased/video_5_rule_based_controller_v7_TL.mp4"
+svid7="${video_dir}/Video7_ControllerCompare/video_7_controller_comparison_v7_TL_small.mp4"
+
 svid8_no_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_no_stable_v14_TL.mp4"
 svid8_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_stable_v14_TL.mp4"
 svid9="${video_dir}/Video9_OdorTaxis/video_9_odor_taxis_v7_TL.mp4"
 
 edfig2="${figure_dir}/EDFig2_PreprogrammedStepping/edfig2_preprogrammed_stepping_v7_TL.pdf"
+fig2comparison="${figure_dir}/Fig2_AdhesionLocomotion/fig2_locomotion_v18_TL.pdf"
+
 fig3visual_no_stable="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_visual_taxis_no_stable_v14_TL.pdf"
 fig3visual_stable="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_visual_taxis_stable_v14_TL.pdf"
 fig3odor="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_odor_taxis_v14_TL.pdf"
@@ -22,10 +26,12 @@ mkdir -p "$(dirname $svid2)"
 mkdir -p "$(dirname $svid3)"
 mkdir -p "$(dirname $svid4)"
 mkdir -p "$(dirname $svid5)"
+mkdir -p "$(dirname $svid7)"
 mkdir -p "$(dirname $svid8_no_stable)"
 mkdir -p "$(dirname $svid8_stable)"
 mkdir -p "$(dirname $svid9)"
 mkdir -p "$(dirname $edfig2)"
+mkdir -p "$(dirname $fig2comparison)"
 mkdir -p "$(dirname $fig3visual_no_stable)"
 mkdir -p "$(dirname $fig3visual_stable)"
 mkdir -p "$(dirname $fig3odor)"
@@ -77,6 +83,19 @@ if [ ! -f $svid5 ]; then
     python decentralized_control.py
     rm decentralized_control.py
     mv outputs/rule_based.mp4 "../$svid5"
+    cd ..
+fi
+
+# supplementary video 7
+if [ ! -f $svid7 ] || [ ! -f $fig2comparison ]; then
+    cd hybrid_controller
+    # sh generate_all_data.sh
+    jupyter nbconvert --to script generate_figure.ipynb
+    python generate_figure.py
+    rm generate_figure.py
+    python make_summary_video.py
+    mv outputs/controller_comparison.mp4 "../$svid7"
+    mv outputs/speed_comparison.pdf "../$fig2comparison"
     cd ..
 fi
 
