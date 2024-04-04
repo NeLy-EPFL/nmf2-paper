@@ -1,0 +1,18 @@
+name: nmf2-paper
+channels:
+  - conda-forge
+  - pytorch
+  - nvidia
+dependencies:
+  - python=3.11
+  - pytorch::pytorch
+  - pytorch::pytorch-cuda=12.1
+  - pytorch::torchvision
+  - pytorch-lightning
+  - pytorch_geometric
+  - rich
+  - stable-baselines3
+  - seaborn
+  - tensorboard
+  - tensorboardx
+  - pandas
