@@ -1,31 +1,23 @@
 import pickle
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import gymnasium as gym
-import stable_baselines3 as sb3
-import stable_baselines3.common.logger as logger
-import stable_baselines3.common.callbacks as callbacks
-import stable_baselines3.common.env_checker as env_checker
-import torch_geometric as pyg
 from pathlib import Path
-from tqdm import trange
-from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
+
+import numpy as np
+import stable_baselines3 as sb3
+import stable_baselines3.common.callbacks as callbacks
+import stable_baselines3.common.logger as logger
+import torch_geometric as pyg
+from flygym.arena import MixedTerrain
+from flygym.examples.obstacle_arena import ObstacleOdorArena
 from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.vec_env import SubprocVecEnv
+from tqdm import trange
 
-from flygym.arena.mujoco_arena import FlatTerrain
-from flygym.arena.mujoco_arena import OdorArena, FlatTerrain, GappedTerrain, BlocksTerrain, MixedTerrain
-from flygym.util.data import color_cycle_rgb
-
-from arena import ObstacleOdorArena
 from rl_navigation import NMFNavigation
 from vision_model import VisualFeaturePreprocessor
 
 
 def make_arena():
-    terrain_arena = MixedTerrain(
-        height_range=(0.3, 0.3), gap_width=0.2, ground_alpha=1
-    )
+    terrain_arena = MixedTerrain(height_range=(0.3, 0.3), gap_width=0.2, ground_alpha=1)
     odor_arena = ObstacleOdorArena(
         terrain=terrain_arena,
         obstacle_positions=np.array([(7.5, 0)]),
@@ -35,30 +27,22 @@ def make_arena():
         obstacle_colors=(0, 0, 0, 1),
     )
     return odor_arena
-    
+
 
 if __name__ == "__main__":
     ## Configs =====
     num_procs = 19
-    base_dir = Path("/home/sibwang/nmf2-paper/integrated_task/preprint_trial")
+    base_dir = Path("/home/tlam/nmf2-paper/integrated_task/preprint_trial")
 
     ## Load vision model =====
-    vision_model_path = base_dir / "data/vision/visual_preprocessor.pt"
-    vision_model = VisualFeaturePreprocessor.load_from_checkpoint(vision_model_path).cpu()
-    ommatidia_graph_path = base_dir / "data/vision/ommatidia_graph.pkl"
+    vision_model_path = base_dir / "../data/vision/visual_preprocessor.pt"
+    vision_model = VisualFeaturePreprocessor.load_from_checkpoint(
+        vision_model_path
+    ).cpu()
+    ommatidia_graph_path = base_dir / "../data/vision/ommatidia_graph.pkl"
     with open(ommatidia_graph_path, "rb") as f:
         ommatidia_graph_nx = pickle.load(f)
     ommatidia_graph = pyg.utils.from_networkx(ommatidia_graph_nx).cpu()
-
-    ## Check arena =====
-    # sim = NMFNavigation(
-    #     arena_factory=make_arena,
-    #     test_mode=True,
-    #     debug_mode=True,
-    #     decision_dt=0.1,
-    # )
-    # env_checker.check_env(sim)
-    # print("Env check done")
 
     ## Define MDP task =====
     def make_env():
@@ -108,5 +92,5 @@ if __name__ == "__main__":
     model.set_logger(my_logger)
 
     print("Training start")
-    model.learn(total_timesteps=500_000, progress_bar=False, callback=checkpoint_callback)
+    model.learn(total_timesteps=1, progress_bar=True, callback=checkpoint_callback)
     model.save(str(base_dir / "data/rl/model"))

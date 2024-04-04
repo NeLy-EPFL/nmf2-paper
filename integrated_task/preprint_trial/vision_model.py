@@ -1,13 +1,14 @@
 import numpy as np
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
+import torch.optim as optim
 import torch_geometric.nn as gnn
-import pytorch_lightning as pl
 import torchmetrics
+from flygym.util import load_config
 
-from flygym.util.config import num_ommatidia_per_eye
+num_ommatidia_per_eye = load_config()["vision"]["num_ommatidia_per_eye"]
 
 
 def angular_loss(pred_angles, true_angles):

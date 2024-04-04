@@ -1,13 +1,11 @@
+import copy
+
+import gymnasium as gym
 import numpy as np
 import torch
-import gymnasium as gym
-import copy
 from dm_control.rl.control import PhysicsError
-
-from flygym.envs.nmf_mujoco import MuJoCoParameters
-from flygym.util.hybrid_controller import HybridTurningController
-import flygym.util.config as config
-import flygym.util.vision as vision
+from flygym import Camera, Fly
+from flygym.examples.turning_controller import HybridTurningNMF
 
 
 def fit_line(pt0, pt1):
@@ -46,23 +44,7 @@ class NMFNavigation(gym.Env):
         if vision_refresh_rate is None:
             vision_refresh_rate = int(1 / decision_dt)
         self.debug_mode = debug_mode
-        self.sim_params = MuJoCoParameters(
-            timestep=1e-4,
-            render_playspeed=render_playspeed,
-            render_fps=30,
-            render_camera=render_camera,
-            # render_camera="Animat/camera_bottom",
-            enable_adhesion=True,
-            draw_adhesion=True,
-            enable_vision=True,
-            actuator_kp=30.0,
-            adhesion_gain=40.0,
-            adhesion_off_duration=0.03,
-            render_raw_vision=test_mode,
-            enable_olfaction=True,
-            render_mode="saved" if test_mode else "headless",
-            vision_refresh_rate=vision_refresh_rate,
-        )
+
         self.vision_model = vision_model.to(device)
         self.ommatidia_graph_l = ommatidia_graph.to(device).clone()
         self.ommatidia_graph_r = ommatidia_graph.to(device).clone()
@@ -77,11 +59,48 @@ class NMFNavigation(gym.Env):
         self.tgt_margin_q = tgt_margin_q
         self.controller_kwargs = kwargs
         self.arena = self.arena_factory()
-        self.controller = HybridTurningController(
-            sim_params=self.sim_params,
-            arena=self.arena,
-            stabilisation_dur=self.n_stabilisation_dur,
+
+        contact_sensor_placements = [
+            f"{leg}{segment}"
+            for leg in ["LF", "LM", "LH", "RF", "RM", "RH"]
+            for segment in [
+                "Tibia",
+                "Tarsus1",
+                "Tarsus2",
+                "Tarsus3",
+                "Tarsus4",
+                "Tarsus5",
+            ]
+        ]
+
+        self.fly = Fly(
+            enable_adhesion=True,
+            draw_adhesion=True,
+            enable_vision=True,
+            actuator_kp=30.0,
+            adhesion_force=40.0,
+            # adhesion_off_duration=0.03,
+            render_raw_vision=test_mode,
+            enable_olfaction=True,
+            vision_refresh_rate=vision_refresh_rate,
+            head_stabilization_kp=1000,
             detect_flip=True,
+            contact_sensor_placements=contact_sensor_placements,
+        )
+
+        self.cam = Camera(
+            fly=self.fly,
+            camera_id=render_camera,
+            fps=30,
+            play_speed=render_playspeed,
+        )
+
+        self.controller = HybridTurningNMF(
+            fly=self.fly,
+            cameras=[self.cam],
+            arena=self.arena,
+            # stabilisation_dur=self.n_stabilisation_dur,
+            timestep=1e-4,
             **self.controller_kwargs,
         )
         self.descending_range = descending_range
@@ -110,7 +129,10 @@ class NMFNavigation(gym.Env):
         obs_pos = self.arena.obstacle_positions[0]  # assuming there's only one here
         tgt_pos = self.arena.odor_source[0, :2]
         self._last_fly_tgt_dist = np.linalg.norm(fly_pos - tgt_pos)
-        self._last_score_obs_heading, self._last_score_tgt_heading = self._calc_heading_score(
+        (
+            self._last_score_obs_heading,
+            self._last_score_tgt_heading,
+        ) = self._calc_heading_score(
             fly_pos=fly_pos,
             obs_pos=obs_pos,
             tgt_pos=tgt_pos,
@@ -118,12 +140,12 @@ class NMFNavigation(gym.Env):
         )
 
         # Compute x-y position of each ommatidium
-        self.coms = np.empty((config.num_ommatidia_per_eye, 2))
-        for i in range(config.num_ommatidia_per_eye):
-            mask = vision.ommatidia_id_map == i + 1
+        retina = self.fly.retina
+        self.coms = np.empty((retina.num_ommatidia_per_eye, 2))
+        for i in range(retina.num_ommatidia_per_eye):
+            mask = retina.ommatidia_id_map == i + 1
             self.coms[i, :] = np.argwhere(mask).mean(axis=0)
 
-    
     def turn_bias_to_descending_signal(self, turn_bias):
         descending_span = self.descending_range[1] - self.descending_range[0]
         descending_signal = np.ones((2,)) * self.descending_range[1]
@@ -134,12 +156,12 @@ class NMFNavigation(gym.Env):
         return descending_signal
 
     def _calc_heading_score(
-            self,
-            fly_pos,
-            obs_pos,
-            tgt_pos,
-            fly_heading,
-        ):
+        self,
+        fly_pos,
+        obs_pos,
+        tgt_pos,
+        fly_heading,
+    ):
         obs_dir = np.arctan2(obs_pos[1] - fly_pos[1], obs_pos[0] - fly_pos[0])
         tgt_dir = np.arctan2(tgt_pos[1] - fly_pos[1], tgt_pos[0] - fly_pos[0])
         obs_dir_rel = obs_dir - fly_heading
@@ -148,7 +170,7 @@ class NMFNavigation(gym.Env):
         fly_tgt_dist = np.linalg.norm(fly_pos - tgt_pos)
         obs_ang_radius = np.arctan2(self.arena.obstacle_radius, fly_obs_dist)
         tgt_ang_radius = np.arctan2(self.tgt_margin_epsilon, fly_tgt_dist)
-        
+
         func_obs_heading = fit_line([0, 1], [self.obs_margin_m * obs_ang_radius, 0])
         score_obs_heading = func_obs_heading(np.abs(obs_dir_rel))
         score_obs_heading = np.clip(score_obs_heading, 0, 1)
@@ -166,9 +188,13 @@ class NMFNavigation(gym.Env):
         try:
             obstacle_contact_counter = 0
             for i in range(self.num_substeps):
-                raw_obs, _, raw_term, raw_trunc, raw_info = self.controller.step(turning_signal)
+                raw_obs, _, raw_term, raw_trunc, raw_info = self.controller.step(
+                    turning_signal
+                )
                 collision_forces = [
-                    np.abs(self.controller.physics.named.data.cfrc_ext[f"obstacle_{j}"]).sum()
+                    np.abs(
+                        self.controller.physics.named.data.cfrc_ext[f"obstacle_{j}"]
+                    ).sum()
                     for j in range(len(self.arena.obstacle_positions))
                 ]
                 if np.sum(collision_forces) > 1:
@@ -182,7 +208,9 @@ class NMFNavigation(gym.Env):
                     smoothed_fly_pos = 0
                 else:
                     smoothed_fly_pos = np.median(self._x_pos_hist[-800:])
-                back_cam_x = max(curr_cam_x_pos, smoothed_fly_pos) + self._back_camera_x_offset
+                back_cam_x = (
+                    max(curr_cam_x_pos, smoothed_fly_pos) + self._back_camera_x_offset
+                )
                 self.controller.physics.bind(back_cam).pos[0] = back_cam_x
                 render_res = self.controller.render()
                 # if render_res is not None:
@@ -199,13 +227,17 @@ class NMFNavigation(gym.Env):
 
         ## Verify state of physics simulation =====
         # check if visual inputs are rendered recently
-        time_since_update = self.controller.curr_time - self.controller._last_vision_update_time
+        time_since_update = (
+            self.controller.curr_time - self.controller.fly._last_vision_update_time
+        )
         assert time_since_update >= 0
-        assert time_since_update < 0.25 * self.controller.timestep or np.isinf(self.controller._last_vision_update_time)
+        assert time_since_update < 0.25 * self.controller.timestep or np.isinf(
+            self.controller._last_vision_update_time
+        )
         # check if the fly state
         has_collided = obstacle_contact_counter > 20
         has_flipped = raw_info["flip"]
-        
+
         ## Fetch variables for reward and obs calculation =====
         fly_pos = raw_obs["fly"][0, :2]
         obs_pos = self.arena.obstacle_positions[0]  # assuming there's only one here
@@ -219,12 +251,14 @@ class NMFNavigation(gym.Env):
         fly_tgt_dist = np.linalg.norm(fly_pos - tgt_pos)
         obs_ang_radius = np.arctan2(self.arena.obstacle_radius, fly_obs_dist)
         tgt_ang_radius = np.arctan2(self.tgt_margin_epsilon, fly_tgt_dist)
-        
+
         ## Calculate tentative costs
         func_obs_heading = fit_line([0, 1], [self.obs_margin_m * obs_ang_radius, 0])
         score_obs_heading = func_obs_heading(np.abs(obs_dir_rel))
         score_obs_heading = np.clip(score_obs_heading, 0, 1)
-        func_tgt_heading = fit_line([tgt_ang_radius, 1], [self.tgt_margin_q * tgt_ang_radius, 0])
+        func_tgt_heading = fit_line(
+            [tgt_ang_radius, 1], [self.tgt_margin_q * tgt_ang_radius, 0]
+        )
         score_tgt_heading = func_tgt_heading(np.abs(tgt_dir_rel))
         score_tgt_heading = np.clip(score_tgt_heading, 0, 1)
         score_obs_heading_2, score_tgt_heading_2 = self._calc_heading_score(
@@ -232,7 +266,7 @@ class NMFNavigation(gym.Env):
         )  # some refactorign needed
         assert score_obs_heading == score_obs_heading_2
         assert score_tgt_heading == score_tgt_heading_2
-        
+
         ## Calculate reward and termination/truncation state =====
         k_dist = 1
         k_avoid = 7
@@ -261,7 +295,7 @@ class NMFNavigation(gym.Env):
             reward = r_dist + r_attract - p_avoid
             terminated = False
             info["state_desc"] = "seeking"
-        
+
         # decide timeout condition
         if self.controller.curr_time > self.max_time and not terminated:
             truncated = True
@@ -280,7 +314,8 @@ class NMFNavigation(gym.Env):
         odor_intensity /= self.arena.peak_odor_intensity[0, 0]
         odor_intensity = np.clip(np.sqrt(odor_intensity), 0, 1)
         obs = np.array(
-            [*visual_features, *odor_intensity, turn_bias_norm], dtype=np.float32,
+            [*visual_features, *odor_intensity, turn_bias_norm],
+            dtype=np.float32,
         )
 
         ## Update state =====
@@ -336,14 +371,10 @@ class NMFNavigation(gym.Env):
         if spawn_orient is not None:
             kwargs["spawn_orient"] = spawn_orient
         self.controller.close()
-        self.arena = self.arena_factory()
-        self.controller = HybridTurningController(
-            sim_params=self.sim_params,
-            arena=self.arena,
-            stabilisation_dur=self.n_stabilisation_dur,
-            detect_flip=True,
-            **kwargs,
-        )
+        # self.arena = self.arena_factory()
+
+        self.controller.reset(seed=seed)
+
         obs = np.zeros((10,), dtype="float32")
 
         raw_obs = self.controller.get_observation()
@@ -352,7 +383,10 @@ class NMFNavigation(gym.Env):
         obs_pos = self.arena.obstacle_positions[0]  # assuming there's only one here
         tgt_pos = self.arena.odor_source[0, :2]
         self._last_fly_tgt_dist = np.linalg.norm(fly_pos - tgt_pos)
-        self._last_score_obs_heading, self._last_score_tgt_heading = self._calc_heading_score(
+        (
+            self._last_score_obs_heading,
+            self._last_score_tgt_heading,
+        ) = self._calc_heading_score(
             fly_pos=fly_pos,
             obs_pos=obs_pos,
             tgt_pos=tgt_pos,
@@ -368,9 +402,7 @@ class NMFNavigation(gym.Env):
         self.ommatidia_graph_l.x = self.ommatidia_graph_l.x.float() / 255
         self.ommatidia_graph_r.x = torch.tensor(intensities[1, :, :]).to(self.device)
         self.ommatidia_graph_r.x = self.ommatidia_graph_r.x.float() / 255
-        model_pred = self.vision_model(
-            self.ommatidia_graph_l, self.ommatidia_graph_r
-        )
+        model_pred = self.vision_model(self.ommatidia_graph_l, self.ommatidia_graph_r)
         angle = model_pred["angle"].detach().cpu().numpy().squeeze()
         angle = 0.5 + np.clip(angle / np.deg2rad(270 / 2), -1, 1) / 2
         dist = model_pred["dist"].detach().cpu().numpy().squeeze()
@@ -390,10 +422,12 @@ class NMFNavigation(gym.Env):
                 if is_obj_coords.shape[0] > 0:
                     features[i, :2] = is_obj_coords.mean(axis=0)
                 features[i, 2] = is_obj_coords.shape[0]
-            features[:, 0] /= config.raw_img_height_px  # normalize y_center
-            features[:, 1] /= config.raw_img_width_px  # normalize x_center
+
+            retina = self.fly.retina
+            features[:, 0] /= retina.nrows  # normalize y_center
+            features[:, 1] /= retina.ncols  # normalize x_center
             # features[:, :2] = features[:, :2] * 2 - 1  # center around 0
-            features[:, 2] /= config.num_ommatidia_per_eye  # normalize area
+            features[:, 2] /= retina.num_ommatidia_per_eye  # normalize area
             print(
                 f"  ! Ly={azimuth[0]:.2f}({features[0, 1]:.2f})  "
                 f"Ry={azimuth[1]:.2f}({features[1, 1]:.2f})"
