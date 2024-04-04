@@ -92,5 +92,5 @@ if __name__ == "__main__":
     model.set_logger(my_logger)
 
     print("Training start")
-    model.learn(total_timesteps=1, progress_bar=True, callback=checkpoint_callback)
+    model.learn(total_timesteps=500_000, progress_bar=False, callback=checkpoint_callback)
     model.save(str(base_dir / "data/rl/model"))
