@@ -149,9 +149,12 @@ fi
 # extended data figure 4
 if [ ! -f $edfig4 ]; then
     cd integrated_task
-    jupyter nbconvert --to script collect_visual_training_data.ipynb
-    python collect_visual_training_data.py
-    rm collect_visual_training_data.py
+
+    if [ ! -f "data/vision/visual_training_data.pkl" ]; then
+        jupyter nbconvert --to script collect_visual_training_data.ipynb
+        python collect_visual_training_data.py
+        rm collect_visual_training_data.py
+    fi
 
     jupyter nbconvert --to script train_vision_model.ipynb
     python train_vision_model.py
