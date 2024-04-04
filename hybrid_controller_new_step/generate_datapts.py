@@ -187,7 +187,7 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
             )
             # No adhesion in stumbling or retracted
             my_adhesion_onoff *= np.logical_not((force_proj < stumbling_force_threshold).any() or
-                                                 i == leg_to_correct_retraction)
+                                        (i == leg_to_correct_retraction or retraction_perisitance_counter[i] > 0))
             adhesion_onoff.append(my_adhesion_onoff)
 
         action = {
