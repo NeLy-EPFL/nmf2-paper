@@ -1,5 +1,4 @@
 import pickle
-import matplotlib.pyplot as plt
 import torch
 import numpy as np
 import cv2
@@ -9,25 +8,29 @@ import torch_geometric as pyg
 from pathlib import Path
 from tqdm import trange
 
-import flygym.util.vision as vision
-from flygym.arena.mujoco_arena import OdorArena, FlatTerrain, GappedTerrain, BlocksTerrain, MixedTerrain
-from flygym.util.data import color_cycle_rgb
+from flygym.arena import MixedTerrain
+from flygym.util import load_config
+from flygym.vision import Retina
 
 from arena import ObstacleOdorArena
 from rl_navigation import NMFNavigation
 from vision_model import VisualFeaturePreprocessor
 
 
+config = load_config()
+color_cycle_rgb = config["color_cycle_rgb"]
+retina = Retina()
+
 base_dir = Path(__file__).parent.absolute()
 device = torch.device("cpu")
 
 
 ## Load vision model =====
-vision_model_path = base_dir / "data/vision/visual_preprocessor.pt"
+vision_model_path = base_dir / "../data/vision/visual_preprocessor.pt"
 vision_model = VisualFeaturePreprocessor.load_from_checkpoint(
     vision_model_path, map_location=device
 )
-ommatidia_graph_path = base_dir / "data/vision/ommatidia_graph.pkl"
+ommatidia_graph_path = base_dir / "../data/vision/ommatidia_graph.pkl"
 with open(ommatidia_graph_path, "rb") as f:
     ommatidia_graph_nx = pickle.load(f)
 ommatidia_graph = pyg.utils.from_networkx(ommatidia_graph_nx).to(device)
@@ -37,21 +40,26 @@ np.random.seed(0)
 sb3.common.utils.set_random_seed(0, using_cuda=True)
 torch.manual_seed(0)
 
+
 def add_insets(
     viz_frame,
     visual_input,
     odor_intensities,
     odor_color,
     odor_gain=800,
-    panel_height=150
+    panel_height=150,
 ):
     final_frame = np.zeros(
         (viz_frame.shape[0] + panel_height + 5, viz_frame.shape[1], 3), dtype=np.uint8
     )
     final_frame[: viz_frame.shape[0], :, :] = viz_frame
 
-    img_l = vision.hex_pxls_to_human_readable(visual_input[0, :, :]).astype(np.uint8)
-    img_r = vision.hex_pxls_to_human_readable(visual_input[1, :, :]).astype(np.uint8)
+    img_l = retina.hex_pxls_to_human_readable(
+        visual_input[0].max(-1), color_8bit=True
+    ).astype(np.uint8)
+    img_r = retina.hex_pxls_to_human_readable(
+        visual_input[1].max(-1), color_8bit=True
+    ).astype(np.uint8)
     vision_inset_size = np.array(
         [panel_height, panel_height * (img_l.shape[1] / img_l.shape[0])]
     ).astype(np.uint16)
@@ -59,7 +67,7 @@ def add_insets(
     img_l = cv2.resize(img_l, vision_inset_size[::-1])
     img_r = cv2.resize(img_r, vision_inset_size[::-1])
     mask = cv2.resize(
-        (vision.ommatidia_id_map > 0).astype(np.uint8), vision_inset_size[::-1]
+        (retina.ommatidia_id_map > 0).astype(np.uint8), vision_inset_size[::-1]
     ).astype(bool)
     img_l[~mask] = 0
     img_r[~mask] = 0
@@ -99,7 +107,9 @@ def add_insets(
     # Odor info
     assert np.array(odor_intensities).shape == (1, 4)
     odor_intensities = np.average(
-        np.array(odor_intensities).reshape(1, 2, 2), axis=1, weights=[9, 1],
+        np.array(odor_intensities).reshape(1, 2, 2),
+        axis=1,
+        weights=[1, 9],
     ).flatten()
     unit_size = panel_height // 5
 
@@ -119,9 +129,7 @@ def add_insets(
 
 
 def make_arena():
-    terrain_arena = MixedTerrain(
-        height_range=(0.3, 0.3), gap_width=0.2, ground_alpha=1
-    )
+    terrain_arena = MixedTerrain(height_range=(0.3, 0.3), gap_width=0.2, ground_alpha=1)
     odor_arena = ObstacleOdorArena(
         terrain=terrain_arena,
         obstacle_positions=np.array([(7.5, 0)]),
@@ -131,6 +139,7 @@ def make_arena():
         obstacle_colors=(0, 0, 0, 1),
     )
     return odor_arena
+
 
 def run_and_visualize(
     model_path,
@@ -163,12 +172,16 @@ def run_and_visualize(
     obs_hist = [obs]
     info_hist = [info]
     for i in trange(100):
-        action, _ = model.predict(obs, deterministic=True)    
+        action, _ = model.predict(obs, deterministic=True)
         obs, reward, terminated, truncated, info = sim.step(action)
         action_hist.append(action)
         obs_hist.append(obs)
         reward_hist.append(reward)
         info_hist.append(info)
+
+        if truncated:
+            print("truncated")
+            break
         if info["fly_tgt_dist"] < 2.5:
             print("distance < 3, stopping")
             break
@@ -184,13 +197,11 @@ def run_and_visualize(
 
     # Save video
     init_time = 0.05
-    with imageio.get_writer(
-        out_path / "video.mp4", fps=sim.sim_params.render_fps
-    ) as writer:
-        for i, (viz_frame, vision_input, odor_input) in enumerate(zip(
-            sim.controller._frames, sim.vision_hist, sim.odor_hist
-        )):
-            if i * sim.controller._eff_render_interval < init_time:
+    with imageio.get_writer(out_path / "video.mp4", fps=sim.cam.fps) as writer:
+        for i, (viz_frame, vision_input, odor_input) in enumerate(
+            zip(sim.cam._frames, sim.vision_hist, sim.odor_hist)
+        ):
+            if i * sim.cam._eff_render_interval < init_time:
                 continue
             frame = add_insets(
                 viz_frame,
@@ -198,7 +209,7 @@ def run_and_visualize(
                 odor_input,
                 odor_color=color_cycle_rgb[1],
                 odor_gain=400,
-                panel_height=150
+                panel_height=150,
             )
             writer.append_data(frame)
     # sim.controller.save_video(out_path / "video.mp4")
@@ -208,7 +219,10 @@ def run_and_visualize(
     individual_frames_dir.mkdir(parents=True, exist_ok=True)
     snapshot_interval_frames = 30
     snapshots = np.array(
-        [sim.controller._frames[i] for i in range(0, len(sim.controller._frames), snapshot_interval_frames)]
+        [
+            sim.cam._frames[i]
+            for i in range(0, len(sim.cam._frames), snapshot_interval_frames)
+        ]
     )
     background = np.median(snapshots, axis=0)
 
@@ -220,30 +234,31 @@ def run_and_visualize(
         img_alpha[is_background, 3] = 0
         img_alpha = img_alpha.astype(np.uint8)
         # break
-        imageio.imwrite(
-            individual_frames_dir / f"frame_{i}.png", img_alpha
-        )
+        imageio.imwrite(individual_frames_dir / f"frame_{i}.png", img_alpha)
 
-    imageio.imwrite(individual_frames_dir / "background.png", background.astype(np.uint8))
+    imageio.imwrite(
+        individual_frames_dir / "background.png", background.astype(np.uint8)
+    )
 
 
 if __name__ == "__main__":
     # spawn_positions = [
-    #     (-1, -1, 0.2), (-1, 0, 0.2), (-1, 1, 0.2), 
-    #     (0, -1, 0.2), (0, 0, 0.2), (0, 1, 0.2), 
-    #     (1, -1, 0.2), (1, 0, 0.2), (1, 1, 0.2),     
+    #     (-1, -1, 0.2), (-1, 0, 0.2), (-1, 1, 0.2),
+    #     (0, -1, 0.2), (0, 0, 0.2), (0, 1, 0.2),
+    #     (1, -1, 0.2), (1, 0, 0.2), (1, 1, 0.2),
     # ]
     # num_train_steps = 266000
     # model_path = f"data/rl/rl_model.zip"
     # for spawn_pos in spawn_positions:
     #     run_and_visualize(
     #         model_path,
-    #         f"outputs/{num_train_steps}_{spawn_pos[0]}_{spawn_pos[1]}_{spawn_pos[2]}", 
+    #         f"outputs/{num_train_steps}_{spawn_pos[0]}_{spawn_pos[1]}_{spawn_pos[2]}",
     #         np.array(spawn_pos),
     #     )
 
-    num_train_steps = 266000
-    model_path = f"data/rl/rl_model.zip"
+    # num_train_steps = 266000
+    num_train_steps = 10
+    model_path = f"data/rl/model.zip"
     run_and_visualize(
         model_path,
         f"outputs/example_out",

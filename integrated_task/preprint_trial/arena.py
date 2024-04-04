@@ -2,7 +2,10 @@ import numpy as np
 from typing import Tuple, Callable, Optional, List, Union
 
 from flygym.arena import BaseArena
-from flygym.util.data import color_cycle_rgb
+from flygym.util import load_config
+
+
+color_cycle_rgb = load_config()["color_cycle_rgb"]
 
 
 class ObstacleOdorArena(BaseArena):
@@ -156,7 +159,7 @@ class ObstacleOdorArena(BaseArena):
         scaling = self.diffuse_func(dist_euc)  # (n, k, w)
         intensity = self._peak_intensity_repeated * scaling  # (n, k, w)
         return intensity.sum(axis=0)  # (k, w)
-    
+
     def pre_visual_render_hook(self, physics):
         for geom, rgba in zip(self._odor_marker_geoms, self.marker_colors):
             physics.bind(geom).rgba = np.array([*rgba[:3], 0])

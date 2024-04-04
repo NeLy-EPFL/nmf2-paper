@@ -1,4 +1,4 @@
-name: nmf2-paper
+name: flygym
 channels:
   - conda-forge
   - pytorch
