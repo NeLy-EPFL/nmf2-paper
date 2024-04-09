@@ -1,4 +1,5 @@
 import copy
+from typing import Callable
 
 import gymnasium as gym
 import numpy as np
@@ -7,6 +8,8 @@ from dm_control.rl.control import PhysicsError
 from flygym import Camera, Fly
 from flygym.examples.turning_controller import HybridTurningNMF
 
+from flygym.arena import BaseArena
+from vision_model import VisualFeaturePreprocessor
 
 def fit_line(pt0, pt1):
     rise = pt1[1] - pt0[1]
@@ -19,8 +22,8 @@ def fit_line(pt0, pt1):
 class NMFNavigation(gym.Env):
     def __init__(
         self,
-        arena_factory,
-        vision_model,
+        arena_factory: Callable[[], BaseArena],
+        vision_model: VisualFeaturePreprocessor,
         ommatidia_graph,
         device="cpu",
         obj_threshold=50,
@@ -215,9 +218,6 @@ class NMFNavigation(gym.Env):
                 self.controller.physics.bind(back_cam).pos[0] = back_cam_x
                 render_res = self.controller.render()[0]
 
-                if not self.test_mode:
-                    self.cam._frames.clear()
-
                 # if render_res is not None:
                 #     import matplotlib.pyplot as plt
                 #     plt.imshow(render_res)
@@ -380,6 +380,11 @@ class NMFNavigation(gym.Env):
         # self.arena = self.arena_factory()
 
         self.controller.reset(seed=seed)
+
+        self.odor_hist = []
+        self.vision_hist = []
+        self._x_pos_hist = []
+        self.cam._frames = []
 
         obs = np.zeros((10,), dtype="float32")
 
