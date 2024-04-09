@@ -240,8 +240,6 @@ class NMFNavigation(gym.Env):
         #     self.fly._last_vision_update_time
         # )
 
-        print(f"{time_since_update=}")
-
         # check if the fly state
         has_collided = obstacle_contact_counter > 20
         has_flipped = raw_info["flip"]
