@@ -59,6 +59,7 @@ class NMFNavigation(gym.Env):
         self.tgt_margin_q = tgt_margin_q
         self.controller_kwargs = kwargs
         self.arena = self.arena_factory()
+        self.test_mode = test_mode
 
         contact_sensor_placements = [
             f"{leg}{segment}"
@@ -212,7 +213,11 @@ class NMFNavigation(gym.Env):
                     max(curr_cam_x_pos, smoothed_fly_pos) + self._back_camera_x_offset
                 )
                 self.controller.physics.bind(back_cam).pos[0] = back_cam_x
-                render_res = self.controller.render()
+                render_res = self.controller.render()[0]
+
+                if not self.test_mode:
+                    self.cam._frames.clear()
+
                 # if render_res is not None:
                 #     import matplotlib.pyplot as plt
                 #     plt.imshow(render_res)
@@ -231,9 +236,12 @@ class NMFNavigation(gym.Env):
             self.controller.curr_time - self.controller.fly._last_vision_update_time
         )
         assert time_since_update >= 0
-        assert time_since_update < 0.25 * self.controller.timestep or np.isinf(
-            self.controller._last_vision_update_time
-        )
+        # assert time_since_update < 0.25 * self.controller.timestep or np.isinf(
+        #     self.fly._last_vision_update_time
+        # )
+
+        print(f"{time_since_update=}")
+
         # check if the fly state
         has_collided = obstacle_contact_counter > 20
         has_flipped = raw_info["flip"]

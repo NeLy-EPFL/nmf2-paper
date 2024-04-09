@@ -1,62 +1,30 @@
 import pickle
-import pkg_resources
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import gymnasium as gym
-import stable_baselines3 as sb3
-import stable_baselines3.common.logger as logger
-import stable_baselines3.common.callbacks as callbacks
 import stable_baselines3.common.env_checker as env_checker
-from dm_control import mjcf
-from dm_control.rl.control import PhysicsError
-import imageio
-import scipy.spatial
-import torch
-import torch.nn as nn
-import torch.optim as optim
 import torch_geometric as pyg
-import torch.nn.functional as F
-import torch_geometric.nn as gnn
-import torch_geometric.loader as pyg_loader
-import pytorch_lightning as pl
-import torchmetrics
-from torch.utils.data import Dataset
 from pathlib import Path
-from typing import Tuple, Callable, Optional, List, Union
 from tqdm import trange
-from dm_control.rl.control import PhysicsError
-from PIL import Image
 
-from flygym.arena.mujoco_arena import FlatTerrain
-from flygym.envs.nmf_mujoco import NeuroMechFlyMuJoCo, MuJoCoParameters
-from flygym.state import stretched_pose
-import flygym.util.vision as vision
-import flygym.util.config as config
-from flygym.arena import BaseArena
-from flygym.arena.mujoco_arena import MixedTerrain, FlatTerrain, GappedTerrain, BlocksTerrain
-from flygym.util.data import color_cycle_rgb
-
-from arena import ObstacleOdorArena
+from flygym.arena import MixedTerrain, FlatTerrain
+from flygym.examples.obstacle_arena import ObstacleOdorArena
 from rl_navigation import NMFNavigation
 from vision_model import VisualFeaturePreprocessor
 
 
-base_dir = Path("/home/sibwang/nmf2-paper/integrated_task/preprint_trial")
+base_dir = Path("/home/tlam/nmf2-paper/integrated_task/preprint_trial")
 
 ## Load vision model =====
-vision_model_path = base_dir / "data/vision/visual_preprocessor.pt"
+vision_model_path = base_dir / "../data/vision/visual_preprocessor.pt"
 vision_model = VisualFeaturePreprocessor.load_from_checkpoint(vision_model_path).cpu()
-ommatidia_graph_path = base_dir / "data/vision/ommatidia_graph.pkl"
+ommatidia_graph_path = base_dir / "../data/vision/ommatidia_graph.pkl"
 with open(ommatidia_graph_path, "rb") as f:
     ommatidia_graph_nx = pickle.load(f)
 ommatidia_graph = pyg.utils.from_networkx(ommatidia_graph_nx).cpu()
 
 
 def make_arena():
-    terrain_arena = MixedTerrain(
-        height_range=(0.3, 0.3), gap_width=0.2, ground_alpha=1
-    )
+    # terrain_arena = MixedTerrain(height_range=(0.3, 0.3), gap_width=0.2, ground_alpha=1)
+    terrain_arena = FlatTerrain()
     odor_arena = ObstacleOdorArena(
         terrain=terrain_arena,
         obstacle_positions=np.array([(7.5, 0)]),
@@ -97,7 +65,7 @@ obs_hist = np.array(obs_hist)
 reward_hist = np.array(reward_hist)
 action_hist = np.array(action_hist)
 
-sim.controller.save_video(base_dir / "test.mp4")
+sim.cam.save_video(base_dir / "test.mp4")
 
 env_checker.check_env(sim)
 
@@ -147,7 +115,7 @@ env_checker.check_env(sim)
 # action_hist = []
 # obs, info = sim.reset(spawn_pos=[-0.2, 0, 0.2], spawn_orient=(0, 0, np.pi / 2))
 # for i in trange(100):
-#     action, _ = model.predict(obs, deterministic=True)    
+#     action, _ = model.predict(obs, deterministic=True)
 #     obs, reward, terminated, truncated, info = sim.step(action)
 #     if info["fly_tgt_dist"] < 3:
 #         print("within 3mm")
@@ -206,7 +174,7 @@ env_checker.check_env(sim)
 #     start_y = np.arange(-10, 12, 2)[trial]
 #     obs, info = sim.reset(spawn_pos=[-0.2, start_y, 0.2], spawn_orient=(0, 0, np.pi / 2))
 #     for i in trange(100):
-#         action, _ = model.predict(obs, deterministic=True)    
+#         action, _ = model.predict(obs, deterministic=True)
 #         obs, reward, terminated, truncated, info = sim.step(action)
 #         if info["fly_tgt_dist"] < 3:
 #             print("within 3mm")
