@@ -11,6 +11,7 @@ from flygym.examples.turning_controller import HybridTurningNMF
 from flygym.arena import BaseArena
 from vision_model import VisualFeaturePreprocessor
 
+
 def fit_line(pt0, pt1):
     rise = pt1[1] - pt0[1]
     run = pt1[0] - pt0[0]
@@ -87,7 +88,8 @@ class NMFNavigation(gym.Env):
             render_raw_vision=test_mode,
             enable_olfaction=True,
             vision_refresh_rate=vision_refresh_rate,
-            head_stabilization_kp=1000,
+            head_stabilization_model=True,
+            neck_kp=1000,
             detect_flip=True,
             contact_sensor_placements=contact_sensor_placements,
         )
