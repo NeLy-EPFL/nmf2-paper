@@ -8,8 +8,8 @@ svid2="${video_dir}/Video2_Climbing/video_2_climbing_v7_TL.mp4"
 svid3="${video_dir}/Video3_SingleStep/video_3_single_step_v5_TL.mp4"
 svid4="${video_dir}/Video4_CPG/video_4_cpg_controller_v8_TL.mp4"
 svid5="${video_dir}/Video5_RuleBased/video_5_rule_based_controller_v7_TL.mp4"
-svid6="${video_dir}/Video6_Hybrid/video_6_hybrid_controller_v6_TL.mp4"
-svid7="${video_dir}/Video7_ControllerCompare/video_7_controller_comparison_v7_TL_small.mp4"
+svid6="${video_dir}/Video6_Hybrid/video_6_hybrid_controller_v7_TL.mp4"
+svid7="${video_dir}/Video7_ControllerCompare/video_7_controller_comparison_v8_TL_small.mp4"
 
 svid8_no_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_no_stable_v14_TL.mp4"
 svid8_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_stable_v14_TL.mp4"
@@ -74,9 +74,9 @@ fi
 # supplementary video 4
 if [ ! -f $svid4 ]; then
     cd control_signal
-    jupyter nbconvert --to script CPG_control.ipynb
-    python CPG_control.py
-    rm CPG_control.py
+    jupyter nbconvert --to script cpg.ipynb
+    python cpg.py
+    rm cpg.py
     mv outputs/cpg.mp4 "../$svid4"
     cd ..
 fi
@@ -84,9 +84,9 @@ fi
 # supplementary video 5
 if [ ! -f $svid5 ]; then
     cd control_signal
-    jupyter nbconvert --to script decentralized_control.ipynb
-    python decentralized_control.py
-    rm decentralized_control.py
+    jupyter nbconvert --to script rule_based.ipynb
+    python rule_based.py
+    rm rule_based.py
     mv outputs/rule_based.mp4 "../$svid5"
     cd ..
 fi
@@ -94,9 +94,9 @@ fi
 # supplementary video 6
 if [ ! -f $svid6 ]; then
     cd control_signal
-    jupyter nbconvert --to script hybrid_signal.ipynb
-    python hybrid_signal.py
-    rm hybrid_signal.py
+    jupyter nbconvert --to script hybrid.ipynb
+    python hybrid.py
+    rm hybrid.py
     mv outputs/hybrid.mp4 "../$svid6"
     cd ..
 fi
