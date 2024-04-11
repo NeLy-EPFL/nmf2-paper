@@ -104,12 +104,14 @@ fi
 # supplementary video 7
 if [ ! -f $svid7 ] || [ ! -f $fig2comparison ]; then
     cd hybrid_controller
-    # sh generate_all_data.sh
+    sh generate_all_data.sh
     jupyter nbconvert --to script generate_figure.ipynb
     python generate_figure.py
     rm generate_figure.py
     python make_summary_video.py
-    mv outputs/controller_comparison.mp4 "../$svid7"
+    sh compress_video.sh
+    rm outputs/controller_comparison.mp4
+    mv outputs/controller_comparison_small.mp4 "../$svid7"
     mv outputs/speed_comparison.pdf "../$fig2comparison"
     cd ..
 fi
@@ -128,7 +130,7 @@ fi
 if [ ! -f $svid8_stable ] || [ ! -f $fig3visual_stable ]; then
     cd visual_inputs
     jupyter nbconvert --to script visual_taxis.ipynb
-    python visual_taxis.py 1000
+    python visual_taxis.py 1
     rm visual_taxis.py
     mv outputs/object_following_with_retina_images.mp4 "../$svid8_stable"
     mv outputs/visual_taxis.pdf "../$fig3visual_stable"
