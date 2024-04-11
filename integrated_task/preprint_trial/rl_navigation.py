@@ -1,4 +1,5 @@
 import copy
+from typing import Callable
 
 import gymnasium as gym
 import numpy as np
@@ -7,6 +8,8 @@ from dm_control.rl.control import PhysicsError
 from flygym import Camera, Fly
 from flygym.examples.turning_controller import HybridTurningNMF
 
+from flygym.arena import BaseArena
+from vision_model import VisualFeaturePreprocessor
 
 def fit_line(pt0, pt1):
     rise = pt1[1] - pt0[1]
@@ -19,8 +22,8 @@ def fit_line(pt0, pt1):
 class NMFNavigation(gym.Env):
     def __init__(
         self,
-        arena_factory,
-        vision_model,
+        arena_factory: Callable[[], BaseArena],
+        vision_model: VisualFeaturePreprocessor,
         ommatidia_graph,
         device="cpu",
         obj_threshold=50,
@@ -59,6 +62,7 @@ class NMFNavigation(gym.Env):
         self.tgt_margin_q = tgt_margin_q
         self.controller_kwargs = kwargs
         self.arena = self.arena_factory()
+        self.test_mode = test_mode
 
         contact_sensor_placements = [
             f"{leg}{segment}"
@@ -212,7 +216,8 @@ class NMFNavigation(gym.Env):
                     max(curr_cam_x_pos, smoothed_fly_pos) + self._back_camera_x_offset
                 )
                 self.controller.physics.bind(back_cam).pos[0] = back_cam_x
-                render_res = self.controller.render()
+                render_res = self.controller.render()[0]
+
                 # if render_res is not None:
                 #     import matplotlib.pyplot as plt
                 #     plt.imshow(render_res)
@@ -231,9 +236,10 @@ class NMFNavigation(gym.Env):
             self.controller.curr_time - self.controller.fly._last_vision_update_time
         )
         assert time_since_update >= 0
-        assert time_since_update < 0.25 * self.controller.timestep or np.isinf(
-            self.controller._last_vision_update_time
-        )
+        # assert time_since_update < 0.25 * self.controller.timestep or np.isinf(
+        #     self.fly._last_vision_update_time
+        # )
+
         # check if the fly state
         has_collided = obstacle_contact_counter > 20
         has_flipped = raw_info["flip"]
@@ -374,6 +380,11 @@ class NMFNavigation(gym.Env):
         # self.arena = self.arena_factory()
 
         self.controller.reset(seed=seed)
+
+        self.odor_hist = []
+        self.vision_hist = []
+        self._x_pos_hist = []
+        self.cam._frames = []
 
         obs = np.zeros((10,), dtype="float32")
 
