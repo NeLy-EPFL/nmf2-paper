@@ -125,7 +125,8 @@ Parallel(n_jobs=-1)(
     delayed(write_trial_video)(trial_id) for trial_id in range(n_trials)
 )
 video_paths = [output_dir / f"{trial_id:02d}.mp4" for trial_id in range(n_trials)]
-with open(output_dir / "video_list.txt", "w") as f:
+video_list = output_dir / "video_list.txt"
+with open(video_list, "w") as f:
     for path in video_paths:
         f.write(f"file {path.relative_to(output_dir)}\n")
 
@@ -144,3 +145,5 @@ run(
         "-y",
     ]
 )
+
+video_list.unlink()

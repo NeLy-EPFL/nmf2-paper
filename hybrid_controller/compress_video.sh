@@ -1,4 +1,5 @@
 ffmpeg \
+    -y \
     -i outputs/controller_comparison.mp4 \
     -b:v 1000k \
     -b:a 128k \
