@@ -4,13 +4,19 @@ import pickle
 import matplotlib.pyplot as plt
 from matplotlib import patches
 
-plt.rcParams['font.family'] = 'Arial'
-plt.rcParams['pdf.fonttype'] = 42
+plt.rcParams["font.family"] = "Arial"
+plt.rcParams["pdf.fonttype"] = 42
 
 spawn_positions = [
-    (-1, -1, 0.2), (-1, 0, 0.2), (-1, 1, 0.2), 
-    (0, -1, 0.2), (0, 0, 0.2), (0, 1, 0.2), 
-    (1, -1, 0.2), (1, 0, 0.2), (1, 1, 0.2), 
+    (-1, -1, 0.2),
+    (-1, 0, 0.2),
+    (-1, 1, 0.2),
+    (0, -1, 0.2),
+    (0, 0, 0.2),
+    (0, 1, 0.2),
+    (1, -1, 0.2),
+    (1, 0, 0.2),
+    (1, 1, 0.2),
 ]
 width = None
 height = None
@@ -20,7 +26,7 @@ num_train_steps = 266000
 out_path = "outputs/navigation_task_merged.mp4"
 
 
-## Merge video
+# Merge video
 all_frames = []
 for spawn_pos in spawn_positions:
     in_path = f"outputs/{num_train_steps}_{spawn_pos[0]}_{spawn_pos[1]}_{spawn_pos[2]}/video.mp4"
@@ -55,9 +61,15 @@ out.release()
 
 ## Make trajectory figure
 spawn_positions = [
-    (-1, -1, 0.2), (-1, 0, 0.2), (-1, 1, 0.2), 
-    (0, -1, 0.2), (0, 0, 0.2), (0, 1, 0.2), 
-    (1, -1, 0.2), (1, 0, 0.2), (1, 1, 0.2),
+    (-1, -1, 0.2),
+    (-1, 0, 0.2),
+    (-1, 1, 0.2),
+    (0, -1, 0.2),
+    (0, 0, 0.2),
+    (0, 1, 0.2),
+    (1, -1, 0.2),
+    (1, 0, 0.2),
+    (1, 1, 0.2),
 ]
 num_train_steps = 266000
 
@@ -79,11 +91,28 @@ for trajectory in trajectories:
     else:
         color = "tab:red"
         end_marker = "x"
-    plt.plot([trajectory[0, 0]], trajectory[0, 1], marker="o", color=color, markersize=3)
+    plt.plot(
+        [trajectory[0, 0]], trajectory[0, 1], marker="o", color=color, markersize=3
+    )
     plt.plot(trajectory[:, 0], trajectory[:, 1], linewidth=0.5, color=color)
-    plt.plot([trajectory[-1, 0]], trajectory[-1, 1], marker=end_marker, color=color, markersize=3)
-target_range = patches.Circle((15, 0), radius=3, edgecolor="tab:orange", facecolor="none", linestyle="--", linewidth=0.5)
-target = patches.Circle((15, 0), radius=0.5, edgecolor="tab:orange", facecolor="tab:orange")
+    plt.plot(
+        [trajectory[-1, 0]],
+        trajectory[-1, 1],
+        marker=end_marker,
+        color=color,
+        markersize=3,
+    )
+target_range = patches.Circle(
+    (15, 0),
+    radius=3,
+    edgecolor="tab:orange",
+    facecolor="none",
+    linestyle="--",
+    linewidth=0.5,
+)
+target = patches.Circle(
+    (15, 0), radius=0.5, edgecolor="tab:orange", facecolor="tab:orange"
+)
 obstacle = patches.Circle((7.5, 0), radius=1, edgecolor="black", facecolor="black")
 ax.add_patch(target_range)
 ax.add_patch(target)

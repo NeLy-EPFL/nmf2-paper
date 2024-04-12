@@ -8,7 +8,7 @@ import torch_geometric as pyg
 from pathlib import Path
 from tqdm import trange
 
-from flygym.arena import MixedTerrain
+from flygym.arena import FlatTerrain
 from flygym.util import load_config
 from flygym.vision import Retina
 
@@ -129,7 +129,8 @@ def add_insets(
 
 
 def make_arena():
-    terrain_arena = MixedTerrain(height_range=(0.3, 0.3), gap_width=0.2, ground_alpha=1)
+    terrain_arena = FlatTerrain()
+    # terrain_arena = MixedTerrain(height_range=(0.3, 0.3), gap_width=0.2, ground_alpha=1)
     odor_arena = ObstacleOdorArena(
         terrain=terrain_arena,
         obstacle_positions=np.array([(7.5, 0)]),
