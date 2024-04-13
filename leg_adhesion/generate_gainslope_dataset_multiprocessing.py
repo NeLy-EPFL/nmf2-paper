@@ -1,123 +1,168 @@
+from flygym import Fly, Camera, SingleFlySimulation
+from flygym.examples.common import PreprogrammedSteps
+from flygym.examples.cpg_controller import CPGNetwork
 import numpy as np
-import matplotlib.pyplot as plt
 from pathlib import Path
-from flygym.envs.nmf_mujoco import NeuroMechFlyMuJoCo, MuJoCoParameters
-from tqdm import trange
-from flygym.util.config import all_leg_dofs
-from flygym.state import stretched_pose
+from itertools import product
+from joblib import Parallel, delayed
+from tqdm import tqdm
 
-from flygym.util.turning_controller import TurningController
-from flygym.util.cpg_controller import plot_phase_amp_output_rules, sine_output
 
-from dm_control.rl.control import PhysicsError
+preprogrammed_steps = PreprogrammedSteps()
 
-import multiprocessing
+###### CONSTANTS ######
+STABILIZATION_DUR = 0.2
+GRAVITY_SWITCHING_T = 0.4
 
-import pickle
+LEGS = ["RF", "RM", "RH", "LF", "LM", "LH"]
+N_OSCILLATORS = len(LEGS)
 
-#### CONSTANTS ####
-TIMESTEP = 1e-4
-RUN_TIME = 1.0
-ACTUATOR_KP = 30
-STABILISATION_DUR = 0.2
+COUPLING_STRENGTH = 10.0
+AMP_RATES = 20.0
+TARGET_AMPLITUDE = 1.0
 
-SLOPE_REVERSAL_TIME = 0.4
+RUN_TIME = 1
 
-def initialize_nmf(gain):
-    # Initialize the simulation
-    sim_params = MuJoCoParameters(
-        timestep=TIMESTEP,
-        #render_mode="saved",
-        render_mode="headless",
-        render_camera="Animat/camera_right",
-        render_playspeed=0.1,
-        actuator_kp=ACTUATOR_KP,
+
+####### CPG #########
+def get_CPG_parameters(freq=12):
+    frequencies = np.ones(N_OSCILLATORS) * freq
+
+    # For now each oscillator have the same amplitude
+    target_amplitudes = np.ones(N_OSCILLATORS) * TARGET_AMPLITUDE
+    rates = np.ones(N_OSCILLATORS) * AMP_RATES
+
+    phase_biases = np.diff(np.mgrid[:6, :6], axis=0)[0] % 2 * np.pi
+    coupling_weights = (np.abs(phase_biases) > 0).astype(float) * COUPLING_STRENGTH
+
+    return frequencies, target_amplitudes, rates, phase_biases, coupling_weights
+
+
+def run_cpg(
+    adhesion_force: float,
+    slope: float,
+    seed: int,
+    save_path: Path,
+    debug=False,
+):
+    if save_path.exists():
+        return
+
+    fly = Fly(
+        actuator_kp=45,
         enable_adhesion=True,
         draw_adhesion=True,
-        adhesion_gain=gain,
-        align_camera_with_gravity =True
+        adhesion_force=adhesion_force,
     )
 
-    nmf = TurningController(
-        sim_params=sim_params,
-        init_pose=stretched_pose,
-        actuated_joints=all_leg_dofs,
-        spawn_pos = [0, 0, 0.2],
-        stabilisation_dur = STABILISATION_DUR
-    )
-    return nmf
+    if debug:
+        cam = Camera(
+            fly=fly,
+            play_speed=0.1,
+            align_camera_with_gravity=True,
+            camera_id="Animat/camera_left",
+        )
+        cameras = [cam]
+    else:
+        cameras = []
 
-def run_slope_CPG(nmf, slope, seed, num_steps=int(RUN_TIME/TIMESTEP)):
-    np.random.seed(seed)
-    obs, _ = nmf.reset()
-    _, _, obs_list = nmf.run_stabilisation()
-    action = [1.0, 1.0]
-    for _ in range(num_steps):
+    sim = SingleFlySimulation(
+        fly=fly,
+        cameras=cameras,
+        timestep=1e-4,
+    )
+
+    sim.reset()
+
+    n_stabilization_steps = int(STABILIZATION_DUR / sim.timestep)
+    gravity_switching_step = int(GRAVITY_SWITCHING_T / sim.timestep)
+    num_steps = int(RUN_TIME / sim.timestep)
+
+    # Get CPG parameters
+    (
+        frequencies,
+        target_amplitudes,
+        rates,
+        phase_biases,
+        coupling_weights,
+    ) = get_CPG_parameters()
+
+    # Initilize the simulation
+    start_amps = np.ones(6) * 0.2
+
+    cpg_network = CPGNetwork(
+        timestep=sim.timestep,
+        intrinsic_freqs=frequencies,
+        intrinsic_amps=start_amps,
+        coupling_weights=coupling_weights,
+        phase_biases=phase_biases,
+        convergence_coefs=rates,
+        init_magnitudes=start_amps,
+        seed=seed,
+    )
+
+    # Initalize storage
+    obs_fly_hist = []
+
+    for i in range(num_steps):
+        cpg_network.step()
+        phase = cpg_network.curr_phases
+        amp = cpg_network.curr_magnitudes
+
+        if i == n_stabilization_steps:
+            # Now set the amplitude to their real values
+            cpg_network.intrinsic_amps[:] = target_amplitudes
+        if i == gravity_switching_step:
+            sim.set_slope(slope, "y")
+        if i <= n_stabilization_steps:
+            phase = phase * 0
+
+        joints_angles = []
+        adhesion_onoff = []
+
+        for i, leg in enumerate(preprogrammed_steps.legs):
+            my_joints_angles = preprogrammed_steps.get_joint_angles(
+                leg, phase[i], amp[i]
+            )
+            joints_angles.append(my_joints_angles)
+            my_adhesion_onoff = preprogrammed_steps.get_adhesion_onoff(leg, phase[i])
+            adhesion_onoff.append(my_adhesion_onoff)
+
+        action = {
+            "joints": np.concatenate(joints_angles),
+            "adhesion": np.array(adhesion_onoff).astype(int),
+        }
+
         try:
-            obs, _, _, _, _ = nmf.step(action)
-        except PhysicsError:
+            obs = sim.step(action)[0]
+            obs_fly_hist.append(obs["fly"])
+        except Exception as e:
+            print(e)
             break
-        obs_list.append(obs)
-        
-        #_ = nmf.render()
-        if np.isclose(nmf.curr_time, SLOPE_REVERSAL_TIME, TIMESTEP/2):
-            #print("Reversing slope:", slope, nmf.sim_params.adhesion_gain)
-            nmf.set_slope(slope, "y")
-    return nmf, obs_list
 
-def run_experiment(gain, slope, seed, output_path, filename_template, metadata):
+        if debug:
+            sim.render()
 
-    gain_folder = output_path / f"seed_{seed}/gain_{gain}"
-    gain_folder.mkdir(parents=True, exist_ok=True)
+    # Save the data
+    np.savez_compressed(save_path, fly=np.array(obs_fly_hist, dtype=np.float32))
 
-    with open(output_path / filename_template.format(seed, gain, "metadata", ".pkl"), "wb") as f:
-        pickle.dump(metadata, f)
-
-    #video_path = output_path / filename_template.format(seed, gain, slope, ".mp4")
-    pkl_path = output_path / filename_template.format(seed, gain, slope, ".pkl")
-    if  pkl_path.exists(): #and video_path.exists():
-        print("pkl already exists:", pkl_path)
-        return
-    
-    print("Running experiment with gain:", gain, "slope:", slope, "seed:", seed)
-
-    nmf = initialize_nmf(gain)
-    nmf, obs_list = run_slope_CPG(nmf, slope, seed)
-
-    #nmf.save_video(video_path)
-    # save the data
-    with open(pkl_path, "wb") as f:
-        pickle.dump(obs_list, f)
-
-    return obs_list
+    if debug:
+        cam.save_video(save_path.with_suffix(".mp4"), stabilization_time=0)
 
 
 if __name__ == "__main__":
-    #slopes_in_degrees = [0, 30, 60, 90, 120][::-1]
-    slopes_in_degrees = np.arange(0, 121, 5)[::-1]
-    #gains = [0.0, 10.0, 20.0]
-    gains = np.arange(0.0, 61.0, 5.0)
+    forces = np.arange(0, 61, 5)
+    slopes_in_degrees = np.arange(0, 181, 5)
+    seeds = np.arange(5)
 
-    seeds = [0, 1, 2, 3, 4]
+    output_path = Path("outputs/datapts_force_slope")
+    output_path.mkdir(exist_ok=True, parents=True)
 
-    output_path = Path("datapts_gainslope")
-    filename_template = "seed_{}/gain_{}/slope_{}{}"
+    it = product(forces, slopes_in_degrees, seeds)
 
-    # Change this loop to multiprocessing
-    for seed in seeds:
-        metadata = {"timestep":TIMESTEP,
-                    "run_time":RUN_TIME,
-                    "actuator_kp":ACTUATOR_KP,
-                    "stabilisation_dur":STABILISATION_DUR,
-                    "seed":seed,
-                    "slope_reversal_time":SLOPE_REVERSAL_TIME}
-        
+    it = [
+        (*i, output_path / "force_{:02d}_slope_{:03d}_seed_{}.npz".format(*i))
+        for i in it
+    ]
 
-        conditions = [(gain, slope, seed, output_path, filename_template, metadata) 
-                      for gain in gains for slope in slopes_in_degrees]
-        with multiprocessing.Pool(4) as pool:
-            obs_lists = pool.starmap(run_experiment, conditions)
-
-        pool.join()
-        pool.close()
-
+    Parallel(n_jobs=-1)(delayed(run_cpg)(*i, True) for i in tqdm(it))
