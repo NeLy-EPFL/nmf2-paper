@@ -1,11 +1,8 @@
-import argparse
-import multiprocessing
-import pickle
-import time
+from itertools import chain, product
 from pathlib import Path
+from typing import Dict, List
 
 import numpy as np
-import yaml
 from dm_control.rl.control import PhysicsError
 from flygym import Camera, Fly, SingleFlySimulation
 from flygym.arena import BlocksTerrain, FlatTerrain, GappedTerrain, MixedTerrain
@@ -15,15 +12,30 @@ from flygym.examples.rule_based_controller import (
     RuleBasedSteppingCoordinator,
     construct_rules_graph,
 )
+from flygym.preprogrammed import get_cpg_biases
+from joblib import Parallel, delayed
+from tqdm import tqdm
+
+import sys
+
+sys.path.append("../control_signal")
+from colored_fly import ColoredFly as Fly
 
 ########### SCRIPT PARAMS ############
-
-out_folder = Path("simulation_results")
-out_folder.mkdir(parents=True, exist_ok=True)
-video_base_path = out_folder / "videos"
-ENVIRONEMENT_SEED = 0
+arenas = ["flat", "gapped", "blocks", "mixed"]
+controllers = ["cpg", "rule_based", "hybrid"]
+save_dir = Path("outputs/obs")
+video_dir = Path("outputs/videos")
+metadata_path = Path("outputs/metadata.npz")
 
 ########### SIM PARAMS ############
+ENVIRONEMENT_SEED = 0
+
+n_exp = 20
+max_x = 4.0
+shift_x = 2.0
+max_y = 4.0
+shift_y = 2.0
 Z_SPAWN_POS = 0.5
 
 timestep = 1e-4
@@ -32,16 +44,7 @@ run_time = 1.5
 ########### CPG PARAMS ############
 intrinsic_freqs = np.ones(6) * 12
 intrinsic_amps = np.ones(6) * 1
-phase_biases = np.pi * np.array(
-    [
-        [0, 1, 0, 1, 0, 1],
-        [1, 0, 1, 0, 1, 0],
-        [0, 1, 0, 1, 0, 1],
-        [1, 0, 1, 0, 1, 0],
-        [0, 1, 0, 1, 0, 1],
-        [1, 0, 1, 0, 1, 0],
-    ]
-)
+phase_biases = get_cpg_biases("tripod")
 coupling_weights = (phase_biases > 0) * 10
 convergence_coefs = np.ones(6) * 20
 
@@ -64,11 +67,8 @@ correction_vectors = {
     "M": np.array([-0.015, 0.001, 0.025, -0.02, 0, -0.02, 0.0]),
     "H": np.array([0, 0, 0, -0.02, 0, 0.01, -0.02]),
 }
-
 right_leg_inversion = [1, -1, -1, 1, -1, 1, 1]
-
 stumbling_force_threshold = -1
-
 correction_rates = {"retraction": (800, 700), "stumbling": (2200, 2100)}
 max_increment = 80
 retraction_persistance = 20
@@ -76,22 +76,31 @@ persistance_init_thr = 20
 
 
 ########### FUNCTIONS ############
-def get_arena(arena_type):
-    if arena_type == "flat":
+def save_obs_list(save_path, obs_list: List[Dict]):
+    array_dict = {}
+    for k in obs_list[0]:
+        array_dict[k] = np.array([i[k] for i in obs_list])
+    np.savez_compressed(save_path, **array_dict)
+
+
+def get_arena(arena: str):
+    if arena == "flat":
         return FlatTerrain()
-    elif arena_type == "gapped":
+    elif arena == "gapped":
         return GappedTerrain()
-    elif arena_type == "blocks":
-        return BlocksTerrain(
-            rand_seed=ENVIRONEMENT_SEED,
-        )
-    elif arena_type == "mixed":
-        return MixedTerrain(
-            rand_seed=ENVIRONEMENT_SEED
-        )  # seed for randomized block heights
+    elif arena == "blocks":
+        # seed for randomized block heights
+        return BlocksTerrain(rand_seed=ENVIRONEMENT_SEED)
+    elif arena == "mixed":
+        return MixedTerrain(rand_seed=ENVIRONEMENT_SEED)
 
 
-def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
+def run_hybrid(
+    sim: SingleFlySimulation,
+    cpg_network: CPGNetwork,
+    preprogrammed_steps: PreprogrammedSteps,
+    run_time: float,
+):
     retraction_correction = np.zeros(6)
     stumbling_correction = np.zeros(6)
 
@@ -110,10 +119,9 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
     obs_list = []
 
     retraction_perisitance_counter = np.zeros(6)
-
     retraction_persistance_counter_hist = np.zeros((6, target_num_steps))
 
-    physics_error = False
+    phys_error = False
 
     for k in range(target_num_steps):
         # retraction rule: does a leg need to be retracted from a hole?
@@ -145,13 +153,11 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
             ):  # lift leg
                 increment = correction_rates["retraction"][0] * sim.timestep
                 retraction_correction[i] += increment
-                sim.fly.change_segment_color(sim.physics, f"{leg}Tibia", (1, 0, 0, 1))
+                sim.fly.change_segment_color(sim.physics, f"{leg}Tibia", (0, 1, 1))
             else:  # condition no longer met, lower leg
                 decrement = correction_rates["retraction"][1] * sim.timestep
                 retraction_correction[i] = max(0, retraction_correction[i] - decrement)
-                sim.fly.change_segment_color(
-                    sim.physics, f"{leg}Tibia", (0.5, 0.5, 0.5, 1)
-                )
+                sim.fly.change_segment_color(sim.physics, f"{leg}Tibia", None)
 
             # update amount of stumbling correction
             contact_forces = obs["contact_forces"][stumbling_sensors[leg], :]
@@ -161,13 +167,11 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
             if (force_proj < stumbling_force_threshold).any():
                 increment = correction_rates["stumbling"][0] * sim.timestep
                 stumbling_correction[i] += increment
-                sim.fly.change_segment_color(sim.physics, f"{leg}Femur", (1, 0, 0, 1))
+                sim.fly.change_segment_color(sim.physics, f"{leg}Femur", (1, 0, 1))
             else:
                 decrement = correction_rates["stumbling"][1] * sim.timestep
                 stumbling_correction[i] = max(0, stumbling_correction[i] - decrement)
-                sim.fly.change_segment_color(
-                    sim.physics, f"{leg}Femur", (0.5, 0.5, 0.5, 1)
-                )
+                sim.fly.change_segment_color(sim.physics, f"{leg}Femur", None)
 
             # retraction correction is prioritized
             if retraction_correction[i] > 0:
@@ -207,13 +211,17 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
             obs_list.append(obs)
             sim.render()
         except PhysicsError:
+            phys_error = True
             break
-            physics_error = True
 
-    return obs_list, physics_error
+    return obs_list, phys_error
 
 
-def run_rule_based_simulation(sim, controller, run_time):
+def run_rule_based(
+    sim: SingleFlySimulation,
+    controller: RuleBasedSteppingCoordinator,
+    run_time: float,
+):
     obs, info = sim.reset()
     obs_list = []
     physic_error = False
@@ -244,11 +252,16 @@ def run_rule_based_simulation(sim, controller, run_time):
     return obs_list, physic_error
 
 
-def run_cpg_simulation(nmf, cpg_network, preprogrammed_steps, run_time):
-    obs, info = nmf.reset()
+def run_cpg(
+    sim: SingleFlySimulation,
+    cpg_network: CPGNetwork,
+    preprogrammed_steps: PreprogrammedSteps,
+    run_time: float,
+):
+    obs, info = sim.reset()
     obs_list = []
-    physics_error = False
-    for _ in range(int(run_time / nmf.timestep)):
+    phys_error = False
+    for _ in range(int(run_time / sim.timestep)):
         cpg_network.step()
         joints_angles = []
         adhesion_onoff = []
@@ -266,23 +279,29 @@ def run_cpg_simulation(nmf, cpg_network, preprogrammed_steps, run_time):
             "adhesion": np.array(adhesion_onoff).astype(int),
         }
         try:
-            obs, reward, terminated, truncated, info = nmf.step(action)
-            nmf.render()
+            obs, reward, terminated, truncated, info = sim.step(action)
+            sim.render()
             obs_list.append(obs)
         except PhysicsError:
-            physics_error = True
+            phys_error = True
             break
-    return obs_list, physics_error
+    return obs_list, phys_error
 
 
-def run_experiment(seed, pos, arena_type, out_path):
-    pos_str = "_".join([f"{p:.2f}" for p in pos])
+def run(arena: str, seed: int, pos: np.ndarray, verbose: bool = False):
+    save_paths = {c: save_dir / f"{c}_{arena}_{seed}.npz" for c in controllers}
+    video_paths = {c: video_dir / f"{c}_{arena}_{seed}.mp4" for c in controllers}
+
+    if all(p.exists() for p in chain(save_paths.values(), video_paths.values())):
+        return
+    else:
+        pass
+
     preprogrammed_steps = PreprogrammedSteps()
-
     contact_sensor_placements = [
         f"{leg}{segment}"
         for leg in preprogrammed_steps.legs
-        for segment in ["Tibia", "Tarsus1", "Tarsus2", "Tarsus3", "Tarsus4", "Tarsus5"]
+        for segment in ["Tibia"] + [f"Tarsus{i}" for i in range(1, 6)]
     ]
 
     # Initialize the simulation
@@ -294,7 +313,7 @@ def run_experiment(seed, pos, arena_type, out_path):
         spawn_pos=pos,
         contact_sensor_placements=contact_sensor_placements,
     )
-    terrain = get_arena(arena_type)
+    terrain = get_arena(arena)
     cam = Camera(fly=fly, play_speed=0.1)
     sim = SingleFlySimulation(
         fly=fly,
@@ -304,7 +323,6 @@ def run_experiment(seed, pos, arena_type, out_path):
     )
 
     # run cpg simulation
-    np.random.seed(seed)
     sim.reset()
     cpg_network = CPGNetwork(
         timestep=timestep,
@@ -315,29 +333,16 @@ def run_experiment(seed, pos, arena_type, out_path):
         convergence_coefs=convergence_coefs,
         seed=seed,
     )
-    cpg_network.random_state = np.random.RandomState(seed)
     cpg_network.reset()
-    cpg_obs_list, cpg_phys_error = run_cpg_simulation(
-        sim, cpg_network, preprogrammed_steps, run_time
-    )
-    print(
-        f"CPG experiment {seed}: {cpg_obs_list[-1]['fly'][0] - cpg_obs_list[0]['fly'][0]}",
-        end="",
-    )
-    if cpg_phys_error:
-        print(" ended with physics error")
-        if len(cpg_obs_list) > 0:
-            cam.save_video(
-                video_base_path / arena_type / "cpg" / f"exp_{seed}_{pos_str}.mp4", 0
-            )
-    else:
-        print("")
-        cam.save_video(
-            video_base_path / arena_type / "cpg" / f"exp_{seed}_{pos_str}.mp4", 0
-        )
+    obs_list, phys_error = run_cpg(sim, cpg_network, preprogrammed_steps, run_time)
+    displacements = obs_list[-1]["fly"][0] - obs_list[0]["fly"][0]
 
-    with open(out_path / "cpg" / f"exp_{seed}_{pos_str}.pkl", "wb") as f:
-        pickle.dump(cpg_obs_list, f)
+    if verbose:
+        print(f"CPG experiment {seed}: {displacements}", end="")
+        print(" ended with physics error" if phys_error else "")
+
+    cam.save_video(video_paths["cpg"], 0)
+    save_obs_list(save_paths["cpg"], obs_list)
 
     # run rule based simulation
     preprogrammed_steps.duration = rule_based_step_dur
@@ -346,135 +351,50 @@ def run_experiment(seed, pos, arena_type, out_path):
         rules_graph=rules_graph,
         weights=weights,
         preprogrammed_steps=preprogrammed_steps,
+        seed=seed,
     )
-    np.random.seed(seed)
     sim.reset()
 
-    rule_based_obs_list, ruled_based_physics_error = run_rule_based_simulation(
-        sim, controller, run_time
-    )
-    print(
-        f"Rule based experiment {seed}: {rule_based_obs_list[-1]['fly'][0] - rule_based_obs_list[0]['fly'][0]}",
-        end="",
-    )
-    if ruled_based_physics_error:
-        print(" ended with physics error")
-        if len(rule_based_obs_list) > 0:
-            cam.save_video(
-                video_base_path
-                / arena_type
-                / "rule_based"
-                / f"exp_{seed}_{pos_str}.mp4",
-                0,
-            )
-    else:
-        print("")
-        cam.save_video(
-            video_base_path / arena_type / "rule_based" / f"exp_{seed}_{pos_str}.mp4", 0
-        )
+    obs_list, phys_error = run_rule_based(sim, controller, run_time)
+    displacements = obs_list[-1]["fly"][0] - obs_list[0]["fly"][0]
 
-    # Save the data
-    with open(out_path / "rule_based" / f"exp_{seed}_{pos_str}.pkl", "wb") as f:
-        pickle.dump(rule_based_obs_list, f)
+    if verbose:
+        print(f"Rule based experiment {seed}: {displacements}", end="")
+        print(" ended with physics error" if phys_error else "")
+
+    cam.save_video(video_paths["rule_based"], 0)
+    save_obs_list(save_paths["rule_based"], obs_list)
 
     # run hybrid simulation
     np.random.seed(seed)
     sim.reset()
     cpg_network.random_state = np.random.RandomState(seed)
     cpg_network.reset()
-    hybrid_obs_list, hybrid_physics_error = run_hybrid_simulation(
-        sim, cpg_network, preprogrammed_steps, run_time
-    )
-    print(
-        f"Hybrid experiment {seed}: {hybrid_obs_list[-1]['fly'][0] - hybrid_obs_list[0]['fly'][0]}",
-        end="",
-    )
-    if hybrid_physics_error:
-        print(" ended with physics error")
-        if len(hybrid_obs_list) > 0:
-            cam.save_video(
-                video_base_path / arena_type / "hybrid" / f"exp_{seed}_{pos_str}.mp4", 0
-            )
-    else:
-        print("")
-        cam.save_video(
-            video_base_path / arena_type / "hybrid" / f"exp_{seed}_{pos_str}.mp4", 0
-        )
-    # Save the data
-    with open(out_path / "hybrid" / f"exp_{seed}_{pos_str}.pkl", "wb") as f:
-        pickle.dump(hybrid_obs_list, f)
+    obs_list, phys_error = run_hybrid(sim, cpg_network, preprogrammed_steps, run_time)
+    displacements = obs_list[-1]["fly"][0] - obs_list[0]["fly"][0]
+
+    if verbose:
+        print(f"Hybrid experiment {seed}: {displacements}", end="")
+        print(" ended with physics error" if phys_error else "")
+
+    cam.save_video(video_paths["hybrid"], 0)
+    save_obs_list(save_paths["hybrid"], obs_list)
 
 
 ########### MAIN ############
-def main(args):
-    # Parse arguments for arena type and adhesion
-    assert args.arena in [
-        "flat",
-        "gapped",
-        "blocks",
-        "mixed",
-    ], "Arena type not recognized"
-
-    arena_type = args.arena
-    n_procs = args.n_procs
-    out_path = args.out_folder
-    for cont in ["cpg", "rule_based", "hybrid"]:
-        (out_path / cont).mkdir(parents=True, exist_ok=True)
-        (video_base_path / arena_type / cont).mkdir(parents=True, exist_ok=True)
-
-    np.random.seed(ENVIRONEMENT_SEED)
+if __name__ == "__main__":
+    # Create directories
+    for d in [save_dir, video_dir, metadata_path.parent]:
+        d.mkdir(parents=True, exist_ok=True)
 
     # Generate random positions
-    max_x = 4.0
-    shift_x = 2.0
-    max_y = 4.0
-    shift_y = 2.0
-    positions = np.zeros((args.n_exp, 3))
-    positions[:, :2] = np.random.rand(args.n_exp, 2)
+    rng = np.random.RandomState(ENVIRONEMENT_SEED)
+    positions = rng.rand(n_exp, 2) * (max_x, max_y) - (shift_x, shift_y)
+    positions = np.column_stack((positions, np.full(n_exp, Z_SPAWN_POS)))
 
-    positions[:, 0] = positions[:, 0] * max_x - shift_x
-    positions[:, 1] = positions[:, 1] * max_y - shift_y
-    positions[:, 2] = Z_SPAWN_POS
+    # Save metadata to yaml
+    np.savez_compressed(metadata_path, run_time=run_time, positions=positions)
 
-    internal_seeds = np.arange(args.n_exp, dtype=int)
-    assert args.n_exp <= len(internal_seeds), "Not enough internal seeds defined"
-    internal_seeds = internal_seeds[: args.n_exp]
-
-    # save metadata to yaml
-    metadata = {
-        "run_time": run_time,
-    }
-    metadata_path = Path(f"data/{arena_type}_metadata.yaml")
-    metadata_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(metadata_path, "w") as f:
-        yaml.dump(metadata, f)
-
-    start_exps = time.time()
-    print("Starting experiments")
-    # Parallelize the experiment
-    if args.n_procs > 1:
-        task_configuration = [
-            (seed, pos, arena_type, out_path)
-            for seed, pos in zip(internal_seeds, positions)
-        ]
-        with multiprocessing.Pool(n_procs) as pool:
-            pool.starmap(run_experiment, task_configuration)
-        pool.join()
-        pool.close()
-    else:
-        for pos, seed in zip(positions, internal_seeds):
-            run_experiment(seed, pos, arena_type, out_path)
-
-    print(f"{args.n_exp} experiments took {time.time()-start_exps:.2f} seconds")
-
-
-if __name__ == "__main__":
-    args = argparse.ArgumentParser()
-    args.add_argument("--arena", type=str, default="flat", help="Type of arena to use")
-    args.add_argument(
-        "--n_exp", type=int, default=10, help="Number of experiments to run"
-    )
-    args.add_argument("--n_procs", type=int, default=1, help="Number of processes")
-    args = args.parse_args()
-    args.out_folder = out_folder / args.arena
-    main(args)
+    # Run experiments
+    it = [(a, s, p) for a, (s, p) in product(arenas, enumerate(positions))]
+    Parallel(n_jobs=-1)(delayed(run)(*i, True) for i in tqdm(it))

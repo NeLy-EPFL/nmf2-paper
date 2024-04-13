@@ -14,12 +14,11 @@ n_trials = 20
 n_frames = 450
 
 s_ = np.s_[30:, ::-1]
-video_dir = Path("simulation_results/videos")
+video_dir = Path("outputs/videos")
 
 
 def get_video_reader(trial_id, controller, terrain):
-    dir_ = video_dir / terrain / controller
-    path = next(dir_.glob(f"exp_{trial_id}_*.mp4"))
+    path = video_dir / f"{controller}_{terrain}_{trial_id}.mp4"
     return VideoReader(path.as_posix())
 
 
@@ -147,3 +146,5 @@ run(
 )
 
 video_list.unlink()
+for path in video_paths:
+    path.unlink()
