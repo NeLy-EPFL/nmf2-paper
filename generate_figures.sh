@@ -18,7 +18,8 @@ svid9="${video_dir}/Video9_OdorTaxis/video_9_odor_taxis_v7_TL.mp4"
 edfig2="${figure_dir}/EDFig2_PreprogrammedStepping/edfig2_preprogrammed_stepping_v7_TL.pdf"
 edfig4="${figure_dir}/EDFig4_VisionModelRL/edfig4_vison_model_rl_v3_TL.pdf"
 
-fig2comparison="${figure_dir}/Fig2_AdhesionLocomotion/fig2_locomotion_v18_TL.pdf"
+fig2_critical_slope="${figure_dir}/Fig2_AdhesionLocomotion/fig2_locomotion_critical_slope_v18_TL.pdf"
+fig2_controller_comparison="${figure_dir}/Fig2_AdhesionLocomotion/fig2_locomotion_controller_comparison_v18_TL.pdf"
 
 fig3visual_no_stable="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_visual_taxis_no_stable_v14_TL.pdf"
 fig3visual_stable="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_visual_taxis_stable_v14_TL.pdf"
@@ -36,7 +37,8 @@ mkdir -p "$(dirname $svid8_stable)"
 mkdir -p "$(dirname $svid9)"
 mkdir -p "$(dirname $edfig2)"
 mkdir -p "$(dirname $edfig4)"
-mkdir -p "$(dirname $fig2comparison)"
+mkdir -p "$(dirname $fig2_controller_comparison)"
+mkdir -p "$(dirname $fig2_critical_slope)"
 mkdir -p "$(dirname $fig3visual_no_stable)"
 mkdir -p "$(dirname $fig3visual_stable)"
 mkdir -p "$(dirname $fig3odor)"
@@ -101,10 +103,11 @@ if [ ! -f $svid6 ]; then
     cd ..
 fi
 
-# supplementary video 7
-if [ ! -f $svid7 ] || [ ! -f $fig2comparison ]; then
+# supplementary video 7 and figure 2G
+if [ ! -f $svid7 ] || [ ! -f $fig2_controller_comparison ]; then
     cd hybrid_controller
-    sh generate_all_data.sh
+    # sh generate_all_data.sh
+    python generate_datapts.py
     jupyter nbconvert --to script generate_figure.ipynb
     python generate_figure.py
     rm generate_figure.py
@@ -112,11 +115,11 @@ if [ ! -f $svid7 ] || [ ! -f $fig2comparison ]; then
     sh compress_video.sh
     rm outputs/controller_comparison.mp4
     mv outputs/controller_comparison_small.mp4 "../$svid7"
-    mv outputs/speed_comparison.pdf "../$fig2comparison"
+    mv outputs/speed_comparison.pdf "../$fig2_controller_comparison"
     cd ..
 fi
 
-# supplementary video 8
+# supplementary video 8 and figure 3C
 if [ ! -f $svid8_no_stable ] || [ ! -f $fig3visual_no_stable ]; then
     cd visual_inputs
     jupyter nbconvert --to script visual_taxis.ipynb
@@ -137,7 +140,7 @@ if [ ! -f $svid8_stable ] || [ ! -f $fig3visual_stable ]; then
     cd ..
 fi
 
-# supplementary video 9
+# supplementary video 9 and figure 3D
 if [ ! -f $svid9 ] || [ ! -f $fig3odor ]; then
     cd odor_inputs
     jupyter nbconvert --to script odor_taxis.ipynb
@@ -145,6 +148,17 @@ if [ ! -f $svid9 ] || [ ! -f $fig3odor ]; then
     rm odor_taxis.py
     mv outputs/odor_taxis.mp4 "../$svid9"
     mv outputs/odor_taxis.pdf "../$fig3odor"
+    cd ..
+fi
+
+# figure 2C
+if [ ! -f $fig2_critical_slope ]; then
+    cd leg_adhesion
+    python generate_gainslope_dataset_multiprocessing.py
+    jupyter nbconvert --to script critical_angle_plot.ipynb
+    python critical_angle_plot.py
+    rm critical_angle_plot.py
+    mv outputs/critical_slope.pdf "../$fig2_critical_slope"
     cd ..
 fi
 
