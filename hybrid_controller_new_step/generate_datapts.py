@@ -114,9 +114,7 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
     retraction_perisitance_counter = np.zeros(6)
 
     retraction_persistance_counter_hist = np.zeros((6, target_num_steps))
-
-    physics_error = False
-
+    
     for k in range(target_num_steps):
         # retraction rule: does a leg need to be retracted from a hole?
         end_effector_z_pos = obs["fly"][0][2] - obs["end_effectors"][:, 2]
@@ -138,7 +136,10 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
         joints_angles = []
         adhesion_onoff = []
 
+        adhesion_on_counter = np.zeros(6)
+
         for i, leg in enumerate(preprogrammed_steps.legs):
+
             # update amount of retraction correction
             if i == leg_to_correct_retraction or retraction_perisitance_counter[i] > 0:  # lift leg
                 increment = correction_rates["retraction"][0] * sim.timestep
@@ -186,28 +187,36 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
                 leg, cpg_network.curr_phases[i]
             )
             # No adhesion in stumbling or retracted
-            my_adhesion_onoff *= np.logical_not((force_proj < stumbling_force_threshold).any() or
-                                        (i == leg_to_correct_retraction or retraction_perisitance_counter[i] > 0))
+            stumbling_or_retracted = ((force_proj < stumbling_force_threshold).any() or 
+                                      (i == leg_to_correct_retraction or retraction_perisitance_counter[i] > 0))
+            my_adhesion_onoff *= stumbling_or_retracted
+            
+            # increment 
+            adhesion_on_counter[i] += my_adhesion_onoff
+            # reset if adhesion is off
+            adhesion_on_counter[i] *= my_adhesion_onoff
+            
+            my_adhesion_onoff = min(1, float(adhesion_on_counter[i])/10)
+
             adhesion_onoff.append(my_adhesion_onoff)
 
         action = {
             "joints": np.array(np.concatenate(joints_angles)),
-            "adhesion": np.array(adhesion_onoff).astype(int),
+            "adhesion": np.array(adhesion_onoff),
         }
         try:
             obs, reward, terminated, truncated, info = sim.step(action)
             obs_list.append(obs)
             sim.render()
-        except PhysicsError:            
+        except PhysicsError:
+            return obs_list, True          
             break 
-            physics_error = True
         
-    return obs_list, physics_error
+    return obs_list, False
 
 def run_rule_based_simulation(sim, controller, run_time):
     obs, info = sim.reset()
     obs_list = []
-    physic_error = False
     for _ in range(int(run_time / sim.timestep)):
         controller.step()
         joint_angles = []
@@ -229,15 +238,13 @@ def run_rule_based_simulation(sim, controller, run_time):
             obs_list.append(obs)
             sim.render()
         except PhysicsError:
-            physic_error = True
-            break
-
-    return obs_list, physic_error
+            return obs_list, True
+        
+    return obs_list, False
 
 def run_cpg_simulation(nmf, cpg_network, preprogrammed_steps, run_time):
     obs, info = nmf.reset()
     obs_list = []
-    physics_error = False
     for _ in range(int(run_time / nmf.timestep)):
         cpg_network.step()
         joints_angles = []
@@ -260,9 +267,9 @@ def run_cpg_simulation(nmf, cpg_network, preprogrammed_steps, run_time):
             nmf.render()
             obs_list.append(obs)
         except PhysicsError:
-            physics_error = True
-            break
-    return obs_list, physics_error
+            return obs_list, True
+        
+    return obs_list, False
 
     
 def run_experiment(seed, pos, arena_type, out_path):
@@ -284,6 +291,8 @@ def run_experiment(seed, pos, arena_type, out_path):
         control="position",
         spawn_pos=pos,
         contact_sensor_placements=contact_sensor_placements,
+        actuator_forcerange = (-65.0, 65.0),
+
     )
     terrain = get_arena(arena_type)
     cam = Camera(fly=fly, play_speed=0.1)
@@ -292,7 +301,7 @@ def run_experiment(seed, pos, arena_type, out_path):
         cameras=[cam],
         timestep=timestep,
         arena=terrain,
-    )            
+    )       
 
     # run cpg simulation
     np.random.seed(seed)
