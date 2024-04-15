@@ -74,7 +74,7 @@ right_leg_inversion = [1, -1, -1, 1, -1, 1, 1]
 
 stumbling_force_threshold = -1
 
-correction_rates = {"retraction": (800, 700), "stumbling": (2200, 2100)}
+correction_rates = {"retraction": (800, 700), "stumbling": (2200, 1800)}
 max_increment = 80
 retraction_persistance = 20
 persistance_init_thr = 20
@@ -114,6 +114,8 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
     retraction_perisitance_counter = np.zeros(6)
 
     retraction_persistance_counter_hist = np.zeros((6, target_num_steps))
+
+    adhesion_on_counter = np.zeros(6)
     
     for k in range(target_num_steps):
         # retraction rule: does a leg need to be retracted from a hole?
@@ -135,8 +137,6 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
         cpg_network.step()
         joints_angles = []
         adhesion_onoff = []
-
-        adhesion_on_counter = np.zeros(6)
 
         for i, leg in enumerate(preprogrammed_steps.legs):
 
@@ -186,17 +186,21 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
             my_adhesion_onoff = preprogrammed_steps.get_adhesion_onoff(
                 leg, cpg_network.curr_phases[i]
             )
+            stumbling_rule_leg = (force_proj < stumbling_force_threshold).any() and not(
+                leg_to_correct_retraction == i)
+            
+            retraction_rule_leg = i == leg_to_correct_retraction or retraction_perisitance_counter[i] > 0
+
             # No adhesion in stumbling or retracted
-            stumbling_or_retracted = ((force_proj < stumbling_force_threshold).any() or 
-                                      (i == leg_to_correct_retraction or retraction_perisitance_counter[i] > 0))
-            my_adhesion_onoff *= stumbling_or_retracted
+            rule_active = np.logical_not(stumbling_rule_leg or retraction_rule_leg)
+            my_adhesion_onoff *= rule_active
             
             # increment 
             adhesion_on_counter[i] += my_adhesion_onoff
             # reset if adhesion is off
             adhesion_on_counter[i] *= my_adhesion_onoff
             
-            my_adhesion_onoff = min(1, float(adhesion_on_counter[i])/10)
+            my_adhesion_onoff = min(1, float(adhesion_on_counter[i])/50)
 
             adhesion_onoff.append(my_adhesion_onoff)
 
