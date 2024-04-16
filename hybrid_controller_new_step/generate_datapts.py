@@ -17,13 +17,13 @@ from flygym.examples import PreprogrammedSteps
 from flygym.arena import FlatTerrain, GappedTerrain, BlocksTerrain, MixedTerrain
 
 from dm_control.rl.control import PhysicsError
-from scipy.interpolate import CubicSpline
+from scipy.interpolate import CubicSpline, interp1d
 
 import yaml
 
 ########### SCRIPT PARAMS ############
 
-out_folder = Path("simulation_results")
+out_folder = Path("simulation_results_bidir0.8_extandedswing_simpleblock_slowstumblereturn")
 out_folder.mkdir(parents=True, exist_ok=True)
 video_base_path = out_folder / "videos"
 ENVIRONEMENT_SEED = 0
@@ -94,6 +94,18 @@ def get_arena(arena_type):
 
 def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
 
+    step_phase_multipler = {}
+
+    for leg in preprogrammed_steps.legs:
+        swing_start, swing_end = preprogrammed_steps.swing_period[leg]
+
+        step_points = [swing_start, np.mean([swing_start, swing_end]), swing_end+np.pi/4, np.mean([swing_end, 2*np.pi]), 2*np.pi]
+        preprogrammed_steps.swing_period[leg] = (swing_start, swing_end+np.pi/4)
+        increment_vals = [0, 0.8, 0, 0.2, 0]
+
+        step_phase_multipler[leg] = interp1d(step_points, increment_vals, kind="linear", fill_value="extrapolate") # CubicSpline(step_points, increment_vals, bc_type="periodic")
+
+
     retraction_correction = np.zeros(6)
     stumbling_correction = np.zeros(6)
 
@@ -122,7 +134,7 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
         end_effector_z_pos = obs["fly"][0][2] - obs["end_effectors"][:, 2]
         end_effector_z_pos_sorted_idx = np.argsort(end_effector_z_pos)
         end_effector_z_pos_sorted = end_effector_z_pos[end_effector_z_pos_sorted_idx]
-        if end_effector_z_pos_sorted[-1] > end_effector_z_pos_sorted[-3] + 0.06:
+        if end_effector_z_pos_sorted[-1] > end_effector_z_pos_sorted[-3] + 0.05:
             leg_to_correct_retraction = end_effector_z_pos_sorted_idx[-1]
             if retraction_correction[leg_to_correct_retraction] > persistance_init_thr:
                 retraction_perisitance_counter[leg_to_correct_retraction] = 1 
@@ -178,7 +190,9 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
             net_correction = np.clip(net_correction, 0, max_increment)
             if leg[0] == "R":
                 net_correction *= right_leg_inversion[i]
-            
+
+            net_correction *= step_phase_multipler[leg](cpg_network.curr_phases[i]%(2*np.pi))
+
             my_joints_angles += net_correction * correction_vectors[leg[1]]
             joints_angles.append(my_joints_angles)
 
@@ -186,21 +200,29 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
             my_adhesion_onoff = preprogrammed_steps.get_adhesion_onoff(
                 leg, cpg_network.curr_phases[i]
             )
-            stumbling_rule_leg = (force_proj < stumbling_force_threshold).any() and not(
-                leg_to_correct_retraction == i)
             
-            retraction_rule_leg = i == leg_to_correct_retraction or retraction_perisitance_counter[i] > 0
+            # my_joints_angles += net_correction * correction_vectors[leg[1]]
+            # joints_angles.append(my_joints_angles)
 
-            # No adhesion in stumbling or retracted
-            rule_active = np.logical_not(stumbling_rule_leg or retraction_rule_leg)
-            my_adhesion_onoff *= rule_active
+            # # get adhesion on/off signal
+            # my_adhesion_onoff = preprogrammed_steps.get_adhesion_onoff(
+            #     leg, cpg_network.curr_phases[i]
+            # )
+            # stumbling_rule_leg = (force_proj < stumbling_force_threshold).any() and not(
+            #     leg_to_correct_retraction == i)
             
-            # increment 
-            adhesion_on_counter[i] += my_adhesion_onoff
-            # reset if adhesion is off
-            adhesion_on_counter[i] *= my_adhesion_onoff
+            # retraction_rule_leg = i == leg_to_correct_retraction or retraction_perisitance_counter[i] > 0
+
+            # # No adhesion in stumbling or retracted
+            # rule_active = np.logical_not(stumbling_rule_leg or retraction_rule_leg)
+            # my_adhesion_onoff *= rule_active
             
-            my_adhesion_onoff = min(1, float(adhesion_on_counter[i])/50)
+            # # increment 
+            # adhesion_on_counter[i] += my_adhesion_onoff
+            # # reset if adhesion is off
+            # adhesion_on_counter[i] *= my_adhesion_onoff
+            
+            # my_adhesion_onoff = min(1, float(adhesion_on_counter[i])/50)
 
             adhesion_onoff.append(my_adhesion_onoff)
 
@@ -214,7 +236,6 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
             sim.render()
         except PhysicsError:
             return obs_list, True          
-            break 
         
     return obs_list, False
 
@@ -296,7 +317,6 @@ def run_experiment(seed, pos, arena_type, out_path):
         spawn_pos=pos,
         contact_sensor_placements=contact_sensor_placements,
         actuator_forcerange = (-65.0, 65.0),
-
     )
     terrain = get_arena(arena_type)
     cam = Camera(fly=fly, play_speed=0.1)
@@ -322,7 +342,7 @@ def run_experiment(seed, pos, arena_type, out_path):
     cpg_network.random_state = np.random.RandomState(seed)
     cpg_network.reset()
     cpg_obs_list, cpg_phys_error = run_cpg_simulation(sim, cpg_network, preprogrammed_steps, run_time)
-    print(f"CPG experiment {seed}: {cpg_obs_list[-1]['fly'][0] - cpg_obs_list[0]['fly'][0]}", end="")
+    print(f"CPG experiment {seed}, {arena_type}: {cpg_obs_list[-1]['fly'][0] - cpg_obs_list[0]['fly'][0]}", end="")
     if cpg_phys_error:
          print(" ended with physics error")
          if len(cpg_obs_list) > 0:
@@ -340,7 +360,7 @@ def run_experiment(seed, pos, arena_type, out_path):
     cpg_network.random_state = np.random.RandomState(seed)
     cpg_network.reset()
     hybrid_obs_list, hybrid_physics_error = run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time)
-    print(f"Hybrid experiment {seed}: {hybrid_obs_list[-1]['fly'][0] - hybrid_obs_list[0]['fly'][0]}", end="")
+    print(f"Hybrid experiment {seed}, {arena_type}: {hybrid_obs_list[-1]['fly'][0] - hybrid_obs_list[0]['fly'][0]}", end="")
     if hybrid_physics_error:
          print(" ended with physics error")
          if len(hybrid_obs_list) > 0:
@@ -352,6 +372,7 @@ def run_experiment(seed, pos, arena_type, out_path):
     with open(out_path / "hybrid" / f"exp_{seed}_{pos_str}.pkl", "wb") as f:
         pickle.dump(hybrid_obs_list, f)
 
+    preprogrammed_steps = PreprogrammedSteps()
     # run rule based simulation    
     preprogrammed_steps.duration = rule_based_step_dur
     controller = RuleBasedSteppingCoordinator(
@@ -364,7 +385,7 @@ def run_experiment(seed, pos, arena_type, out_path):
     sim.reset()
     
     rule_based_obs_list, ruled_based_physics_error = run_rule_based_simulation(sim, controller, run_time)
-    print(f"Rule based experiment {seed}: {rule_based_obs_list[-1]['fly'][0] - rule_based_obs_list[0]['fly'][0]}", end="")
+    print(f"Rule based experiment {seed}, {arena_type}: {rule_based_obs_list[-1]['fly'][0] - rule_based_obs_list[0]['fly'][0]}", end="")
     if ruled_based_physics_error:
          print(" ended with physics error")
          if len(rule_based_obs_list) > 0:
