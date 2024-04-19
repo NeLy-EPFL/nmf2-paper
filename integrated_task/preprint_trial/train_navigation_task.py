@@ -6,7 +6,7 @@ import stable_baselines3 as sb3
 import stable_baselines3.common.callbacks as callbacks
 import stable_baselines3.common.logger as logger
 import torch_geometric as pyg
-from flygym.arena import MixedTerrain, FlatTerrain
+from flygym.arena import MixedTerrain
 from flygym.examples.obstacle_arena import ObstacleOdorArena
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
@@ -17,8 +17,7 @@ from vision_model import VisualFeaturePreprocessor
 
 
 def make_arena():
-    # terrain_arena = MixedTerrain(height_range=(0.3, 0.3), gap_width=0.2, ground_alpha=1)
-    terrain_arena = FlatTerrain()
+    terrain_arena = MixedTerrain(height_range=(0.3, 0.3), gap_width=0.2, ground_alpha=1)
     odor_arena = ObstacleOdorArena(
         terrain=terrain_arena,
         obstacle_positions=np.array([(7.5, 0)]),
@@ -32,7 +31,7 @@ def make_arena():
 
 if __name__ == "__main__":
     ## Configs =====
-    num_procs = 19
+    num_procs = 22
     base_dir = Path("/home/tlam/nmf2-paper/integrated_task/preprint_trial")
 
     ## Load vision model =====
@@ -94,6 +93,6 @@ if __name__ == "__main__":
 
     print("Training start")
     model.learn(
-        total_timesteps=500_000, progress_bar=False, callback=checkpoint_callback
+        total_timesteps=500_000, progress_bar=True, callback=checkpoint_callback
     )
     model.save(str(base_dir / "data/rl/model"))

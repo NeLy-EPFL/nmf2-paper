@@ -5,13 +5,13 @@ import torch_geometric as pyg
 from pathlib import Path
 from tqdm import trange
 
-from flygym.arena import MixedTerrain, FlatTerrain
+from flygym.arena import MixedTerrain
 from flygym.examples.obstacle_arena import ObstacleOdorArena
 from rl_navigation import NMFNavigation
 from vision_model import VisualFeaturePreprocessor
 
 
-base_dir = Path("/home/tlam/nmf2-paper/integrated_task/preprint_trial")
+base_dir = Path("./")
 
 ## Load vision model =====
 vision_model_path = base_dir / "../data/vision/visual_preprocessor.pt"
@@ -23,8 +23,7 @@ ommatidia_graph = pyg.utils.from_networkx(ommatidia_graph_nx).cpu()
 
 
 def make_arena():
-    # terrain_arena = MixedTerrain(height_range=(0.3, 0.3), gap_width=0.2, ground_alpha=1)
-    terrain_arena = FlatTerrain()
+    terrain_arena = MixedTerrain(height_range=(0.3, 0.3), gap_width=0.2, ground_alpha=1)
     odor_arena = ObstacleOdorArena(
         terrain=terrain_arena,
         obstacle_positions=np.array([(7.5, 0)]),

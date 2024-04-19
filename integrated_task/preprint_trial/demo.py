@@ -10,7 +10,7 @@ from pathlib import Path
 from tqdm import trange
 
 import flygym.util.vision as vision
-from flygym.arena.mujoco_arena import OdorArena, FlatTerrain, GappedTerrain, BlocksTerrain, MixedTerrain
+from flygym.arena.mujoco_arena import MixedTerrain
 from flygym.util.data import color_cycle_rgb
 
 from arena import ObstacleOdorArena
@@ -34,13 +34,14 @@ np.random.seed(0)
 sb3.common.utils.set_random_seed(0, using_cuda=True)
 torch.manual_seed(0)
 
+
 def add_insets(
     viz_frame,
     visual_input,
     odor_intensities,
     odor_color,
     odor_gain=400,
-    panel_height=150
+    panel_height=150,
 ):
     final_frame = np.zeros(
         (viz_frame.shape[0] + panel_height + 5, viz_frame.shape[1], 3), dtype=np.uint8
@@ -96,7 +97,9 @@ def add_insets(
     # Odor info
     assert np.array(odor_intensities).shape == (1, 4)
     odor_intensities = np.average(
-        np.array(odor_intensities).reshape(1, 2, 2), axis=1, weights=[9, 1],
+        np.array(odor_intensities).reshape(1, 2, 2),
+        axis=1,
+        weights=[9, 1],
     ).flatten()
     unit_size = panel_height // 5
 
@@ -116,9 +119,7 @@ def add_insets(
 
 
 def make_arena():
-    terrain_arena = MixedTerrain(
-        height_range=(0.3, 0.3), gap_width=0.2, ground_alpha=1
-    )
+    terrain_arena = MixedTerrain(height_range=(0.3, 0.3), gap_width=0.2, ground_alpha=1)
     odor_arena = ObstacleOdorArena(
         terrain=terrain_arena,
         obstacle_positions=np.array([(7.5, 0)]),
@@ -128,6 +129,7 @@ def make_arena():
         obstacle_colors=(0, 0, 0, 1),
     )
     return odor_arena
+
 
 def run_and_visualize(
     model_path, out_path, spawn_pos=[-0.02, 0, 0.2], spawn_orient=(0, 0, np.pi / 2)
@@ -151,7 +153,7 @@ def run_and_visualize(
     obs_hist = [obs]
     info_hist = [info]
     for i in trange(100):
-        action, _ = model.predict(obs, deterministic=True)    
+        action, _ = model.predict(obs, deterministic=True)
         obs, reward, terminated, truncated, info = sim.step(action)
         action_hist.append(action)
         obs_hist.append(obs)
@@ -182,7 +184,7 @@ def run_and_visualize(
                 odor_input,
                 odor_color=color_cycle_rgb[1],
                 odor_gain=400,
-                panel_height=150
+                panel_height=150,
             )
             writer.append_data(frame)
     # sim.controller.save_video(out_path / "video.mp4")
@@ -192,7 +194,10 @@ def run_and_visualize(
     individual_frames_dir.mkdir(parents=True, exist_ok=True)
     snapshot_interval_frames = 10
     snapshots = np.array(
-        [sim.controller._frames[i] for i in range(0, len(sim.controller._frames), snapshot_interval_frames)]
+        [
+            sim.controller._frames[i]
+            for i in range(0, len(sim.controller._frames), snapshot_interval_frames)
+        ]
     )
     background = np.median(snapshots, axis=0)
 
@@ -204,22 +209,22 @@ def run_and_visualize(
         img_alpha[is_background, 3] = 0
         img_alpha = img_alpha.astype(np.uint8)
         # break
-        imageio.imwrite(
-            individual_frames_dir / f"frame_{i}.png", img_alpha
-        )
+        imageio.imwrite(individual_frames_dir / f"frame_{i}.png", img_alpha)
 
-    imageio.imwrite(individual_frames_dir / "background.png", background.astype(np.uint8))
+    imageio.imwrite(
+        individual_frames_dir / "background.png", background.astype(np.uint8)
+    )
 
 
 if __name__ == "__main__":
     spawn_positions = [
-        (0, 0, 0.2), 
+        (0, 0, 0.2),
     ]
     num_train_steps = 266000
-    model_path = f"data/rl/rl_model.zip"
+    model_path = f"data/rl/model.zip"
     for spawn_pos in spawn_positions:
         run_and_visualize(
             model_path,
-            f"outputs/{num_train_steps}_demo", 
+            f"outputs/{num_train_steps}_demo",
             np.array(spawn_pos),
         )

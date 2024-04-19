@@ -82,13 +82,12 @@ class NMFNavigation(gym.Env):
             enable_adhesion=True,
             draw_adhesion=True,
             enable_vision=True,
-            actuator_kp=30.0,
-            adhesion_force=40.0,
-            # adhesion_off_duration=0.03,
+            actuator_kp=45,
+            adhesion_force=40,
             render_raw_vision=test_mode,
             enable_olfaction=True,
             vision_refresh_rate=vision_refresh_rate,
-            head_stabilization_model=True,
+            head_stabilization_model="thorax",
             neck_kp=1000,
             detect_flip=True,
             contact_sensor_placements=contact_sensor_placements,
@@ -412,9 +411,9 @@ class NMFNavigation(gym.Env):
     def _get_visual_features(self):
         intensities = self.controller.get_observation()["vision"]
         self.ommatidia_graph_l.x = torch.tensor(intensities[0, :, :]).to(self.device)
-        self.ommatidia_graph_l.x = self.ommatidia_graph_l.x.float() / 255
+        self.ommatidia_graph_l.x = self.ommatidia_graph_l.x.float()
         self.ommatidia_graph_r.x = torch.tensor(intensities[1, :, :]).to(self.device)
-        self.ommatidia_graph_r.x = self.ommatidia_graph_r.x.float() / 255
+        self.ommatidia_graph_r.x = self.ommatidia_graph_r.x.float()
         model_pred = self.vision_model(self.ommatidia_graph_l, self.ommatidia_graph_r)
         angle = model_pred["angle"].detach().cpu().numpy().squeeze()
         angle = 0.5 + np.clip(angle / np.deg2rad(270 / 2), -1, 1) / 2
