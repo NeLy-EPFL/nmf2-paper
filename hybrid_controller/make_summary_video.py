@@ -108,6 +108,8 @@ def write_trial_video(trial_id, n_frames=450):
 
     with imageio.get_writer(output_dir / f"{trial_id:02d}.mp4", fps=fps) as writer:
         for frame_id in range(n_frames):
+            if frame_id < 5:
+                continue
             for image, video_reader in zip(images, video_readers):
                 if frame_id < len(video_reader):
                     img = video_reader[frame_id].asnumpy()[s_]
