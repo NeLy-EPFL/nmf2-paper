@@ -15,6 +15,7 @@ from flygym.examples.rule_based_controller import (
 from flygym.preprogrammed import get_cpg_biases
 from joblib import Parallel, delayed
 from tqdm import tqdm
+from scipy.interpolate import interp1d
 
 import sys
 
@@ -69,7 +70,7 @@ correction_vectors = {
 }
 right_leg_inversion = [1, -1, -1, 1, -1, 1, 1]
 stumbling_force_threshold = -1
-correction_rates = {"retraction": (800, 700), "stumbling": (2200, 2100)}
+correction_rates = {"retraction": (800, 700), "stumbling": (2200, 1800)}
 max_increment = 80
 retraction_persistance = 20
 persistance_init_thr = 20
@@ -101,6 +102,25 @@ def run_hybrid(
     preprogrammed_steps: PreprogrammedSteps,
     run_time: float,
 ):
+    step_phase_multipler = {}
+
+    for leg in preprogrammed_steps.legs:
+        swing_start, swing_end = preprogrammed_steps.swing_period[leg]
+
+        step_points = [
+            swing_start,
+            np.mean([swing_start, swing_end]),
+            swing_end + np.pi / 4,
+            np.mean([swing_end, 2 * np.pi]),
+            2 * np.pi,
+        ]
+        preprogrammed_steps.swing_period[leg] = (swing_start, swing_end + np.pi / 4)
+        increment_vals = [0, 0.8, 0, 0.2, 0]
+
+        step_phase_multipler[leg] = interp1d(
+            step_points, increment_vals, kind="linear", fill_value="extrapolate"
+        )  # CubicSpline(step_points, increment_vals, bc_type="periodic")
+
     retraction_correction = np.zeros(6)
     stumbling_correction = np.zeros(6)
 
@@ -114,13 +134,10 @@ def run_hybrid(
     stumbling_sensors = {k: np.array(v) for k, v in stumbling_sensors.items()}
 
     obs, info = sim.reset()
-
     target_num_steps = int(run_time / sim.timestep)
     obs_list = []
-
     retraction_perisitance_counter = np.zeros(6)
     retraction_persistance_counter_hist = np.zeros((6, target_num_steps))
-
     phys_error = False
 
     for k in range(target_num_steps):
@@ -128,7 +145,7 @@ def run_hybrid(
         end_effector_z_pos = obs["fly"][0][2] - obs["end_effectors"][:, 2]
         end_effector_z_pos_sorted_idx = np.argsort(end_effector_z_pos)
         end_effector_z_pos_sorted = end_effector_z_pos[end_effector_z_pos_sorted_idx]
-        if end_effector_z_pos_sorted[-1] > end_effector_z_pos_sorted[-3] + 0.06:
+        if end_effector_z_pos_sorted[-1] > end_effector_z_pos_sorted[-3] + 0.05:
             leg_to_correct_retraction = end_effector_z_pos_sorted_idx[-1]
             if retraction_correction[leg_to_correct_retraction] > persistance_init_thr:
                 retraction_perisitance_counter[leg_to_correct_retraction] = 1
@@ -153,11 +170,13 @@ def run_hybrid(
             ):  # lift leg
                 increment = correction_rates["retraction"][0] * sim.timestep
                 retraction_correction[i] += increment
-                sim.fly.change_segment_color(sim.physics, f"{leg}Tibia", (0, 1, 1))
+                sim.fly.change_segment_color(sim.physics, f"{leg}Tibia", (1, 0, 0, 1))
             else:  # condition no longer met, lower leg
                 decrement = correction_rates["retraction"][1] * sim.timestep
                 retraction_correction[i] = max(0, retraction_correction[i] - decrement)
-                sim.fly.change_segment_color(sim.physics, f"{leg}Tibia", None)
+                sim.fly.change_segment_color(
+                    sim.physics, f"{leg}Tibia", (0.5, 0.5, 0.5, 1)
+                )
 
             # update amount of stumbling correction
             contact_forces = obs["contact_forces"][stumbling_sensors[leg], :]
@@ -167,11 +186,13 @@ def run_hybrid(
             if (force_proj < stumbling_force_threshold).any():
                 increment = correction_rates["stumbling"][0] * sim.timestep
                 stumbling_correction[i] += increment
-                sim.fly.change_segment_color(sim.physics, f"{leg}Femur", (1, 0, 1))
+                sim.fly.change_segment_color(sim.physics, f"{leg}Femur", (1, 0, 0, 1))
             else:
                 decrement = correction_rates["stumbling"][1] * sim.timestep
                 stumbling_correction[i] = max(0, stumbling_correction[i] - decrement)
-                sim.fly.change_segment_color(sim.physics, f"{leg}Femur", None)
+                sim.fly.change_segment_color(
+                    sim.physics, f"{leg}Femur", (0.5, 0.5, 0.5, 1)
+                )
 
             # retraction correction is prioritized
             if retraction_correction[i] > 0:
@@ -188,6 +209,10 @@ def run_hybrid(
             if leg[0] == "R":
                 net_correction *= right_leg_inversion[i]
 
+            net_correction *= step_phase_multipler[leg](
+                cpg_network.curr_phases[i] % (2 * np.pi)
+            )
+
             my_joints_angles += net_correction * correction_vectors[leg[1]]
             joints_angles.append(my_joints_angles)
 
@@ -195,26 +220,21 @@ def run_hybrid(
             my_adhesion_onoff = preprogrammed_steps.get_adhesion_onoff(
                 leg, cpg_network.curr_phases[i]
             )
-            # No adhesion in stumbling or retracted
-            my_adhesion_onoff *= np.logical_not(
-                (force_proj < stumbling_force_threshold).any()
-                or i == leg_to_correct_retraction
-            )
+
             adhesion_onoff.append(my_adhesion_onoff)
 
         action = {
             "joints": np.array(np.concatenate(joints_angles)),
-            "adhesion": np.array(adhesion_onoff).astype(int),
+            "adhesion": np.array(adhesion_onoff),
         }
         try:
             obs, reward, terminated, truncated, info = sim.step(action)
             obs_list.append(obs)
             sim.render()
         except PhysicsError:
-            phys_error = True
-            break
+            return obs_list, True
 
-    return obs_list, phys_error
+    return obs_list, False
 
 
 def run_rule_based(
@@ -224,7 +244,6 @@ def run_rule_based(
 ):
     obs, info = sim.reset()
     obs_list = []
-    physic_error = False
     for _ in range(int(run_time / sim.timestep)):
         controller.step()
         joint_angles = []
@@ -246,10 +265,9 @@ def run_rule_based(
             obs_list.append(obs)
             sim.render()
         except PhysicsError:
-            physic_error = True
-            break
+            return obs_list, True
 
-    return obs_list, physic_error
+    return obs_list, False
 
 
 def run_cpg(
@@ -260,7 +278,6 @@ def run_cpg(
 ):
     obs, info = sim.reset()
     obs_list = []
-    phys_error = False
     for _ in range(int(run_time / sim.timestep)):
         cpg_network.step()
         joints_angles = []
@@ -283,9 +300,9 @@ def run_cpg(
             sim.render()
             obs_list.append(obs)
         except PhysicsError:
-            phys_error = True
-            break
-    return obs_list, phys_error
+            return obs_list, True
+
+    return obs_list, False
 
 
 def run(arena: str, seed: int, pos: np.ndarray, verbose: bool = False):
@@ -312,6 +329,7 @@ def run(arena: str, seed: int, pos: np.ndarray, verbose: bool = False):
         control="position",
         spawn_pos=pos,
         contact_sensor_placements=contact_sensor_placements,
+        actuator_forcerange=(-65.0, 65.0),
     )
     terrain = get_arena(arena)
     cam = Camera(fly=fly, play_speed=0.1)
