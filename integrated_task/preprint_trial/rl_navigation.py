@@ -78,7 +78,10 @@ class NMFNavigation(gym.Env):
             ]
         ]
 
+        self.contact_sensor_placements = contact_sensor_placements
+
         self.fly = Fly(
+            name="0",
             enable_adhesion=True,
             draw_adhesion=True,
             enable_vision=True,
@@ -90,7 +93,7 @@ class NMFNavigation(gym.Env):
             head_stabilization_model="thorax",
             neck_kp=1000,
             detect_flip=True,
-            contact_sensor_placements=contact_sensor_placements,
+            contact_sensor_placements=list(contact_sensor_placements),
         )
 
         self.cam = Camera(
@@ -104,7 +107,6 @@ class NMFNavigation(gym.Env):
             fly=self.fly,
             cameras=[self.cam],
             arena=self.arena,
-            # stabilisation_dur=self.n_stabilisation_dur,
             timestep=1e-4,
             **self.controller_kwargs,
         )
@@ -378,7 +380,40 @@ class NMFNavigation(gym.Env):
         if spawn_orient is not None:
             kwargs["spawn_orient"] = spawn_orient
         self.controller.close()
-        # self.arena = self.arena_factory()
+        self.arena = self.arena_factory()
+
+        self.fly = Fly(
+            name="0",
+            enable_adhesion=True,
+            draw_adhesion=True,
+            enable_vision=True,
+            actuator_kp=45,
+            adhesion_force=40,
+            render_raw_vision=self.test_mode,
+            enable_olfaction=True,
+            vision_refresh_rate=self.fly.vision_refresh_rate,
+            head_stabilization_model="thorax",
+            neck_kp=1000,
+            detect_flip=True,
+            contact_sensor_placements=list(self.contact_sensor_placements),
+            spawn_pos=spawn_pos,
+            spawn_orientation=spawn_orient,
+        )
+
+        self.cam = Camera(
+            fly=self.fly,
+            camera_id=self.cam.camera_id,
+            fps=30,
+            play_speed=self.cam.play_speed,
+        )
+
+        self.controller = HybridTurningNMF(
+            fly=self.fly,
+            cameras=[self.cam],
+            arena=self.arena,
+            timestep=1e-4,
+            **self.controller_kwargs,
+        )
 
         self.controller.reset(seed=seed)
 

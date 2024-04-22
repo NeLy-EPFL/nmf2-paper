@@ -212,7 +212,7 @@ def run_and_visualize(
                 panel_height=150,
             )
             writer.append_data(frame)
-    # sim.controller.save_video(out_path / "video.mp4")
+    sim.cam.save_video(out_path / "video.mp4")
 
     # Save snapshot frames
     individual_frames_dir = out_path / "individual_frames"
@@ -242,28 +242,32 @@ def run_and_visualize(
 
 
 if __name__ == "__main__":
-    # spawn_positions = [
-    #     (-1, -1, 0.2), (-1, 0, 0.2), (-1, 1, 0.2),
-    #     (0, -1, 0.2), (0, 0, 0.2), (0, 1, 0.2),
-    #     (1, -1, 0.2), (1, 0, 0.2), (1, 1, 0.2),
-    # ]
-    # num_train_steps = 266000
-    # model_path = f"data/rl/rl_model.zip"
-    # for spawn_pos in spawn_positions:
-    #     run_and_visualize(
-    #         model_path,
-    #         f"outputs/{num_train_steps}_{spawn_pos[0]}_{spawn_pos[1]}_{spawn_pos[2]}",
-    #         np.array(spawn_pos),
-    #     )
+    spawn_positions = [
+        (-1, -1, 0.2),
+        (-1, 0, 0.2),
+        (-1, 1, 0.2),
+        (0, -1, 0.2),
+        (0, 0, 0.2),
+        (0, 1, 0.2),
+        (1, -1, 0.2),
+        (1, 0, 0.2),
+        (1, 1, 0.2),
+    ]
+    num_train_steps = 500000
+    model_path = f"data/rl/model.zip"
+    for spawn_pos in spawn_positions:
+        run_and_visualize(
+            model_path,
+            f"outputs/{num_train_steps}_{spawn_pos[0]}_{spawn_pos[1]}_{spawn_pos[2]}",
+            np.array(spawn_pos),
+        )
 
-    # num_train_steps = 266000
-    num_train_steps = 10
-    model_path = "/home/tlam/nmf2-paper/integrated_task/preprint_trial/logs/preprint_trial_288200_steps.zip"
-    run_and_visualize(
-        model_path,
-        f"outputs/example_out",
-        np.array([0, 0, 0.2]),
-        render_camera="back_cam",
-        render_playspeed=0.2,
-        vision_refresh_rate=100,
-    )
+    # model_path = "data/rl/model.zip"
+    # run_and_visualize(
+    #     model_path,
+    #     f"outputs/example_out",
+    #     np.array([0, 0, 0.2]),
+    #     render_camera="back_cam",
+    #     render_playspeed=0.2,
+    #     vision_refresh_rate=100,
+    # )

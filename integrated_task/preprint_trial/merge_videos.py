@@ -22,7 +22,7 @@ width = None
 height = None
 fps = None
 # fourcc = None
-num_train_steps = 266000
+num_train_steps = 500000
 out_path = "outputs/navigation_task_merged.mp4"
 
 
@@ -52,12 +52,11 @@ for spawn_pos in spawn_positions:
     cap.release()
 
 print(f"Writing to {out_path}...")
-fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-out = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
-for frame in all_frames:
-    out.write(frame)
-out.release()
+import imageio
 
+with imageio.get_writer(out_path, fps=fps) as writer:
+    for frame in all_frames:
+        writer.append_data(frame[..., ::-1])
 
 ## Make trajectory figure
 spawn_positions = [
@@ -71,7 +70,7 @@ spawn_positions = [
     (1, 0, 0.2),
     (1, 1, 0.2),
 ]
-num_train_steps = 266000
+num_train_steps = 500000
 
 trajectories = []
 print(f"Making trajectories figure...")
@@ -120,4 +119,7 @@ ax.add_patch(obstacle)
 ax.set_aspect("equal")
 ax.set_xlim([-2, 19])
 ax.set_ylim([-7, 7])
-fig.savefig("outputs/trajectories.pdf", transparent=True)
+ax.set_xticks([])
+ax.set_yticks([])
+ax.text(0.2, -1.6, "Start\nposition", ha="center", va="top", fontsize=10)
+fig.savefig("outputs/trajectories.pdf", transparent=True, bbox_inches="tight", pad_inches=0)
