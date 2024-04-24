@@ -126,21 +126,20 @@ def run_hybrid(
 
     detected_segments = ["Tibia", "Tarsus1", "Tarsus2"]
     stumbling_sensors = {leg: [] for leg in preprogrammed_steps.legs}
-    for i, sensor_name in enumerate(sim.fly.contact_sensor_placements):
+    for j, sensor_name in enumerate(sim.fly.contact_sensor_placements):
         leg = sensor_name.split("/")[1][:2]  # sensor_name: eg. "Animat/LFTarsus1"
         segment = sensor_name.split("/")[1][2:]
         if segment in detected_segments:
-            stumbling_sensors[leg].append(i)
+            stumbling_sensors[leg].append(j)
     stumbling_sensors = {k: np.array(v) for k, v in stumbling_sensors.items()}
 
     obs, info = sim.reset()
     target_num_steps = int(run_time / sim.timestep)
     obs_list = []
     retraction_perisitance_counter = np.zeros(6)
-    retraction_persistance_counter_hist = np.zeros((6, target_num_steps))
     phys_error = False
 
-    for k in range(target_num_steps):
+    for i in range(target_num_steps):
         # retraction rule: does a leg need to be retracted from a hole?
         end_effector_z_pos = obs["fly"][0][2] - obs["end_effectors"][:, 2]
         end_effector_z_pos_sorted_idx = np.argsort(end_effector_z_pos)
@@ -157,26 +156,29 @@ def run_hybrid(
         retraction_perisitance_counter[
             retraction_perisitance_counter > retraction_persistance
         ] = 0
-        retraction_persistance_counter_hist[:, k] = retraction_perisitance_counter
 
         cpg_network.step()
         joints_angles = []
         adhesion_onoff = []
 
-        for i, leg in enumerate(preprogrammed_steps.legs):
+        for j, leg in enumerate(preprogrammed_steps.legs):
             # update amount of retraction correction
             if (
-                i == leg_to_correct_retraction or retraction_perisitance_counter[i] > 0
+                j == leg_to_correct_retraction or retraction_perisitance_counter[j] > 0
             ):  # lift leg
                 increment = correction_rates["retraction"][0] * sim.timestep
-                retraction_correction[i] += increment
-                sim.fly.change_segment_color(sim.physics, f"{leg}Tibia", (1, 0, 0, 1))
+                retraction_correction[j] += increment
+                sim.fly.change_segment_color(
+                    sim.physics,
+                    f"{leg}Tibia",
+                    (1.0, 0.4117647058823529, 0.7058823529411765),
+                )
             else:  # condition no longer met, lower leg
                 decrement = correction_rates["retraction"][1] * sim.timestep
-                retraction_correction[i] = max(0, retraction_correction[i] - decrement)
-                sim.fly.change_segment_color(
-                    sim.physics, f"{leg}Tibia", (0.5, 0.5, 0.5, 1)
-                )
+                retraction_correction[j] = max(0, retraction_correction[j] - decrement)
+                sim.fly.change_segment_color(sim.physics, f"{leg}Tibia", None)
+
+            retract = retraction_correction[j] > 0
 
             # update amount of stumbling correction
             contact_forces = obs["contact_forces"][stumbling_sensors[leg], :]
@@ -185,32 +187,35 @@ def run_hybrid(
             force_proj = np.dot(contact_forces, fly_orientation)
             if (force_proj < stumbling_force_threshold).any():
                 increment = correction_rates["stumbling"][0] * sim.timestep
-                stumbling_correction[i] += increment
-                sim.fly.change_segment_color(sim.physics, f"{leg}Femur", (1, 0, 0, 1))
+                stumbling_correction[j] += increment
+                if not retract:
+                    sim.fly.change_segment_color(
+                        sim.physics,
+                        f"{leg}Tibia",
+                        (0.11764705882352941, 0.5647058823529412, 1.0),
+                    )
             else:
                 decrement = correction_rates["stumbling"][1] * sim.timestep
-                stumbling_correction[i] = max(0, stumbling_correction[i] - decrement)
-                sim.fly.change_segment_color(
-                    sim.physics, f"{leg}Femur", (0.5, 0.5, 0.5, 1)
-                )
+                stumbling_correction[j] = max(0, stumbling_correction[j] - decrement)
+                sim.fly.change_segment_color(sim.physics, f"{leg}Tibia", None)
 
             # retraction correction is prioritized
-            if retraction_correction[i] > 0:
-                net_correction = retraction_correction[i]
-                stumbling_correction[i] = 0
+            if retraction_correction[j] > 0:
+                net_correction = retraction_correction[j]
+                stumbling_correction[j] = 0
             else:
-                net_correction = stumbling_correction[i]
+                net_correction = stumbling_correction[j]
 
             # get target angles from CPGs and apply correction
             my_joints_angles = preprogrammed_steps.get_joint_angles(
-                leg, cpg_network.curr_phases[i], cpg_network.curr_magnitudes[i]
+                leg, cpg_network.curr_phases[j], cpg_network.curr_magnitudes[j]
             )
             net_correction = np.clip(net_correction, 0, max_increment)
             if leg[0] == "R":
-                net_correction *= right_leg_inversion[i]
+                net_correction *= right_leg_inversion[j]
 
             net_correction *= step_phase_multipler[leg](
-                cpg_network.curr_phases[i] % (2 * np.pi)
+                cpg_network.curr_phases[j] % (2 * np.pi)
             )
 
             my_joints_angles += net_correction * correction_vectors[leg[1]]
@@ -218,7 +223,7 @@ def run_hybrid(
 
             # get adhesion on/off signal
             my_adhesion_onoff = preprogrammed_steps.get_adhesion_onoff(
-                leg, cpg_network.curr_phases[i]
+                leg, cpg_network.curr_phases[j]
             )
 
             adhesion_onoff.append(my_adhesion_onoff)
