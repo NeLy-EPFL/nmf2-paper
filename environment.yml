@@ -9,6 +9,7 @@ dependencies:
   - pytorch::pytorch-cuda=12.1
   - pytorch::torchvision
   - pytorch-lightning
+  - lightning
   - pytorch_geometric
   - rich
   - stable-baselines3
