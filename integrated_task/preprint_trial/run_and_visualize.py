@@ -233,7 +233,6 @@ def run_and_visualize(
         img_alpha[:, :, :3] = img
         img_alpha[is_background, 3] = 0
         img_alpha = img_alpha.astype(np.uint8)
-        # break
         imageio.imwrite(individual_frames_dir / f"frame_{i}.png", img_alpha)
 
     imageio.imwrite(
@@ -262,12 +261,11 @@ if __name__ == "__main__":
             np.array(spawn_pos),
         )
 
-    # model_path = "data/rl/model.zip"
-    # run_and_visualize(
-    #     model_path,
-    #     f"outputs/example_out",
-    #     np.array([0, 0, 0.2]),
-    #     render_camera="back_cam",
-    #     render_playspeed=0.2,
-    #     vision_refresh_rate=100,
-    # )
+    run_and_visualize(
+        model_path,
+        f"outputs/example_out",
+        np.array([0, 0, 0.2]),
+        render_camera="back_cam",
+        render_playspeed=0.2,
+        vision_refresh_rate=100,
+    )

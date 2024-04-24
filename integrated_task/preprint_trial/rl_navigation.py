@@ -10,6 +10,14 @@ from flygym.examples.turning_controller import HybridTurningNMF
 
 from flygym.arena import BaseArena
 from vision_model import VisualFeaturePreprocessor
+from flygym.util import get_data_path
+from flygym.examples.head_stabilization import HeadStabilizationInferenceWrapper
+
+model_dir = get_data_path("flygym", "data") / "trained_models" / "head_stabilization"
+head_stabilization_model = HeadStabilizationInferenceWrapper(
+    model_path=model_dir / "all_dofs_model.ckpt",
+    scaler_param_path=model_dir / "joint_angle_scaler_params.pkl",
+)
 
 
 def fit_line(pt0, pt1):
@@ -90,7 +98,7 @@ class NMFNavigation(gym.Env):
             render_raw_vision=test_mode,
             enable_olfaction=True,
             vision_refresh_rate=vision_refresh_rate,
-            head_stabilization_model="thorax",
+            head_stabilization_model=head_stabilization_model,
             neck_kp=1000,
             detect_flip=True,
             contact_sensor_placements=list(contact_sensor_placements),
@@ -392,7 +400,7 @@ class NMFNavigation(gym.Env):
             render_raw_vision=self.test_mode,
             enable_olfaction=True,
             vision_refresh_rate=self.fly.vision_refresh_rate,
-            head_stabilization_model="thorax",
+            head_stabilization_model=head_stabilization_model,
             neck_kp=1000,
             detect_flip=True,
             contact_sensor_placements=list(self.contact_sensor_placements),
