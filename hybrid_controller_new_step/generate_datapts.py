@@ -23,7 +23,7 @@ import yaml
 
 ########### SCRIPT PARAMS ############
 
-out_folder = Path("simulation_results_bidir0.8_extandedswing_simpleblock_slowstumblereturn")
+out_folder = Path("simulation_results_bidir0.8neg_extandedswing_simpleblock_slowstumblereturn")
 out_folder.mkdir(parents=True, exist_ok=True)
 video_base_path = out_folder / "videos"
 ENVIRONEMENT_SEED = 0
@@ -101,7 +101,7 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
 
         step_points = [swing_start, np.mean([swing_start, swing_end]), swing_end+np.pi/4, np.mean([swing_end, 2*np.pi]), 2*np.pi]
         preprogrammed_steps.swing_period[leg] = (swing_start, swing_end+np.pi/4)
-        increment_vals = [0, 0.8, 0, 0.2, 0]
+        increment_vals = [0, 0.8, 0, -0.1, 0]
 
         step_phase_multipler[leg] = interp1d(step_points, increment_vals, kind="linear", fill_value="extrapolate") # CubicSpline(step_points, increment_vals, bc_type="periodic")
 
@@ -126,8 +126,6 @@ def run_hybrid_simulation(sim, cpg_network, preprogrammed_steps, run_time):
     retraction_perisitance_counter = np.zeros(6)
 
     retraction_persistance_counter_hist = np.zeros((6, target_num_steps))
-
-    adhesion_on_counter = np.zeros(6)
     
     for k in range(target_num_steps):
         # retraction rule: does a leg need to be retracted from a hole?
