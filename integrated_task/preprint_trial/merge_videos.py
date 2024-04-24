@@ -103,7 +103,7 @@ for trajectory in trajectories:
     )
 target_range = patches.Circle(
     (15, 0),
-    radius=3,
+    radius=2.5,
     edgecolor="tab:orange",
     facecolor="none",
     linestyle="--",

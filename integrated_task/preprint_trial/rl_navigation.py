@@ -118,6 +118,9 @@ class NMFNavigation(gym.Env):
             timestep=1e-4,
             **self.controller_kwargs,
         )
+
+        self.controller.reset(seed=0)
+
         self.descending_range = descending_range
         self.vision_hist = []
         self.odor_hist = []

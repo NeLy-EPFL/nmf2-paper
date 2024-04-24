@@ -182,9 +182,9 @@ def run_and_visualize(
         if truncated:
             print("truncated")
             break
-        if info["fly_tgt_dist"] < 2.5:
-            print("distance < 3, stopping")
-            break
+        # if info["fly_tgt_dist"] < 2.5:
+        #     print("distance < 3, stopping")
+        #     break
         if terminated:
             print("terminated")
             break
