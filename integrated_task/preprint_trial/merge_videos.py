@@ -122,4 +122,6 @@ ax.set_ylim([-7, 7])
 ax.set_xticks([])
 ax.set_yticks([])
 ax.text(0.2, -1.6, "Start\nposition", ha="center", va="top", fontsize=10)
-fig.savefig("outputs/trajectories.pdf", transparent=True, bbox_inches="tight", pad_inches=0)
+fig.savefig(
+    "outputs/trajectories.pdf", transparent=True, bbox_inches="tight", pad_inches=0
+)
