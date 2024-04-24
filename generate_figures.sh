@@ -10,8 +10,7 @@ svid4="${video_dir}/Video4_CPG/video_4_cpg_controller_v9_TL.mp4"
 svid5="${video_dir}/Video5_RuleBased/video_5_rule_based_controller_v8_TL.mp4"
 svid6="${video_dir}/Video6_Hybrid/video_6_hybrid_controller_v8_TL.mp4"
 svid7="${video_dir}/Video7_ControllerCompare/video_7_controller_comparison_v9_TL_small.mp4"
-svid8_no_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_no_stable_v14_TL.mp4"
-svid8_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_stable_v14_TL.mp4"
+svid8="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_v14_TL.mp4"
 svid9="${video_dir}/Video9_OdorTaxis/video_9_odor_taxis_v8_TL.mp4"
 svid10="${video_dir}/Video10_MultimodalNavigationFollowCam/video_10_multimodal_navigation_example_v3_TL.mp4"
 svid11="${video_dir}/Video11_MultimodalNavigation9Trials/video_11_navigation_task_v6_TL.mp4"
@@ -22,7 +21,7 @@ edfig4="${figure_dir}/EDFig4_VisionModelRL/edfig4_vison_model_rl_v4_TL.pdf"
 fig2_critical_slope="${figure_dir}/Fig2_AdhesionLocomotion/fig2_locomotion_critical_slope_v18_TL.pdf"
 fig2_controller_comparison="${figure_dir}/Fig2_AdhesionLocomotion/fig2_locomotion_controller_comparison_v19_TL.pdf"
 
-fig3visual_no_stable="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_visual_taxis_no_stable_v14_TL.pdf"
+fig3visual="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_visual_taxis_v14_TL.pdf"
 fig3visual_stable="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_visual_taxis_stable_v14_TL.pdf"
 fig3odor="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_odor_taxis_v14_TL.pdf"
 fig3trajectories="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_trajectories_v15_TL.pdf"
@@ -34,8 +33,7 @@ mkdir -p "$(dirname $svid4)"
 mkdir -p "$(dirname $svid5)"
 mkdir -p "$(dirname $svid6)"
 mkdir -p "$(dirname $svid7)"
-mkdir -p "$(dirname $svid8_no_stable)"
-mkdir -p "$(dirname $svid8_stable)"
+mkdir -p "$(dirname $svid8)"
 mkdir -p "$(dirname $svid9)"
 mkdir -p "$(dirname $svid10)"
 mkdir -p "$(dirname $svid11)"
@@ -43,7 +41,7 @@ mkdir -p "$(dirname $edfig2)"
 mkdir -p "$(dirname $edfig4)"
 mkdir -p "$(dirname $fig2_controller_comparison)"
 mkdir -p "$(dirname $fig2_critical_slope)"
-mkdir -p "$(dirname $fig3visual_no_stable)"
+mkdir -p "$(dirname $fig3visual)"
 mkdir -p "$(dirname $fig3visual_stable)"
 mkdir -p "$(dirname $fig3odor)"
 
@@ -73,7 +71,7 @@ if [ ! -f $svid3 ] || [ ! -f $edfig2 ] ; then
     python stepping_illustration.py
     rm stepping_illustration.py
     mv outputs/single_step.mp4 "../$svid3"
-    mv outputs/single_step.pdf "../$edfig2"
+    cp outputs/single_step.pdf "../$edfig2"
     cd ..
 fi
 
@@ -118,28 +116,18 @@ if [ ! -f $svid7 ] || [ ! -f $fig2_controller_comparison ]; then
     sh compress_video.sh
     rm outputs/controller_comparison.mp4
     mv outputs/controller_comparison_small.mp4 "../$svid7"
-    mv outputs/speed_comparison.pdf "../$fig2_controller_comparison"
+    cp outputs/speed_comparison.pdf "../$fig2_controller_comparison"
     cd ..
 fi
 
 # supplementary video 8 and figure 3C
-if [ ! -f $svid8_no_stable ] || [ ! -f $fig3visual_no_stable ]; then
+if [ ! -f $svid8 ] || [ ! -f $fig3visual ]; then
     cd visual_inputs
     jupyter nbconvert --to script visual_taxis.ipynb
     python visual_taxis.py 0
     rm visual_taxis.py
-    mv outputs/object_following_with_retina_images.mp4 "../$svid8_no_stable"
-    mv outputs/visual_taxis.pdf "../$fig3visual_no_stable"
-    cd ..
-fi
-
-if [ ! -f $svid8_stable ] || [ ! -f $fig3visual_stable ]; then
-    cd visual_inputs
-    jupyter nbconvert --to script visual_taxis.ipynb
-    python visual_taxis.py 1
-    rm visual_taxis.py
-    mv outputs/object_following_with_retina_images.mp4 "../$svid8_stable"
-    mv outputs/visual_taxis.pdf "../$fig3visual_stable"
+    mv outputs/object_following_with_retina_images.mp4 "../$svid8"
+    cp outputs/visual_taxis.pdf "../$fig3visual"
     cd ..
 fi
 
@@ -150,7 +138,7 @@ if [ ! -f $svid9 ] || [ ! -f $fig3odor ]; then
     python odor_taxis.py
     rm odor_taxis.py
     mv outputs/odor_taxis.mp4 "../$svid9"
-    mv outputs/odor_taxis.pdf "../$fig3odor"
+    cp outputs/odor_taxis.pdf "../$fig3odor"
     cd ..
 fi
 
@@ -161,7 +149,7 @@ if [ ! -f $fig2_critical_slope ]; then
     jupyter nbconvert --to script critical_angle_plot.ipynb
     python critical_angle_plot.py
     rm critical_angle_plot.py
-    mv outputs/critical_slope.pdf "../$fig2_critical_slope"
+    cp outputs/critical_slope.pdf "../$fig2_critical_slope"
     cd ..
 fi
 
