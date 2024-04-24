@@ -6,20 +6,11 @@ from gymnasium.utils.env_checker import check_env
 from flygym.simulation import SingleFlySimulation, Fly
 from flygym.examples.common import PreprogrammedSteps
 from flygym.examples.cpg_controller import CPGNetwork
+from flygym.preprogrammed import get_cpg_biases
 
 
-_tripod_phase_biases = np.pi * np.array(
-    [
-        [0, 1, 0, 1, 0, 1],
-        [1, 0, 1, 0, 1, 0],
-        [0, 1, 0, 1, 0, 1],
-        [1, 0, 1, 0, 1, 0],
-        [0, 1, 0, 1, 0, 1],
-        [1, 0, 1, 0, 1, 0],
-    ]
-)
+_tripod_phase_biases = get_cpg_biases("tripod")
 _tripod_coupling_weights = (_tripod_phase_biases > 0) * 10
-
 _default_correction_vectors = {
     # "leg pos": (Coxa, Coxa_roll, Coxa_yaw, Femur, Femur_roll, Tibia, Tarsus1)
     "F": np.array([0, 0, 0, -0.02, 0, 0.016, 0]),
@@ -27,7 +18,6 @@ _default_correction_vectors = {
     "H": np.array([0, 0, 0, -0.01, 0, 0.005, 0]),
 }
 _default_correction_rates = {"retraction": (500, 1000 / 3), "stumbling": (2000, 500)}
-
 _contact_sensor_placements = tuple(
     f"{leg}{segment}"
     for leg in ["LF", "LM", "LH", "RF", "RM", "RH"]
