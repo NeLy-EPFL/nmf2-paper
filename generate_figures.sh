@@ -6,24 +6,26 @@ figure_dir="_outputs/FIGURES"
 svid1="${video_dir}/Video1_ForcesLocomotion/video_1_force_visualization_v6_TL.mp4"
 svid2="${video_dir}/Video2_Climbing/video_2_climbing_v7_TL.mp4"
 svid3="${video_dir}/Video3_SingleStep/video_3_single_step_v5_TL.mp4"
-svid4="${video_dir}/Video4_CPG/video_4_cpg_controller_v8_TL.mp4"
-svid5="${video_dir}/Video5_RuleBased/video_5_rule_based_controller_v7_TL.mp4"
-svid6="${video_dir}/Video6_Hybrid/video_6_hybrid_controller_v7_TL.mp4"
-svid7="${video_dir}/Video7_ControllerCompare/video_7_controller_comparison_v8_TL_small.mp4"
-
+svid4="${video_dir}/Video4_CPG/video_4_cpg_controller_v9_TL.mp4"
+svid5="${video_dir}/Video5_RuleBased/video_5_rule_based_controller_v8_TL.mp4"
+svid6="${video_dir}/Video6_Hybrid/video_6_hybrid_controller_v8_TL.mp4"
+svid7="${video_dir}/Video7_ControllerCompare/video_7_controller_comparison_v9_TL_small.mp4"
 svid8_no_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_no_stable_v14_TL.mp4"
 svid8_stable="${video_dir}/Video8_VisualTaxis/video_8_visual_taxis_stable_v14_TL.mp4"
-svid9="${video_dir}/Video9_OdorTaxis/video_9_odor_taxis_v7_TL.mp4"
+svid9="${video_dir}/Video9_OdorTaxis/video_9_odor_taxis_v8_TL.mp4"
+svid10="${video_dir}/Video10_MultimodalNavigationFollowCam/video_10_multimodal_navigation_example_v3_TL.mp4"
+svid11="${video_dir}/Video11_MultimodalNavigation9Trials/video_11_navigation_task_v6_TL.mp4"
 
 edfig2="${figure_dir}/EDFig2_PreprogrammedStepping/edfig2_preprogrammed_stepping_v7_TL.pdf"
-edfig4="${figure_dir}/EDFig4_VisionModelRL/edfig4_vison_model_rl_v3_TL.pdf"
+edfig4="${figure_dir}/EDFig4_VisionModelRL/edfig4_vison_model_rl_v4_TL.pdf"
 
 fig2_critical_slope="${figure_dir}/Fig2_AdhesionLocomotion/fig2_locomotion_critical_slope_v18_TL.pdf"
-fig2_controller_comparison="${figure_dir}/Fig2_AdhesionLocomotion/fig2_locomotion_controller_comparison_v18_TL.pdf"
+fig2_controller_comparison="${figure_dir}/Fig2_AdhesionLocomotion/fig2_locomotion_controller_comparison_v19_TL.pdf"
 
 fig3visual_no_stable="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_visual_taxis_no_stable_v14_TL.pdf"
 fig3visual_stable="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_visual_taxis_stable_v14_TL.pdf"
 fig3odor="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_odor_taxis_v14_TL.pdf"
+fig3trajectories="${figure_dir}/Fig3_VisionOlfactionRL/fig3_sensory_trajectories_v15_TL.pdf"
 
 mkdir -p "$(dirname $svid1)"
 mkdir -p "$(dirname $svid2)"
@@ -35,6 +37,8 @@ mkdir -p "$(dirname $svid7)"
 mkdir -p "$(dirname $svid8_no_stable)"
 mkdir -p "$(dirname $svid8_stable)"
 mkdir -p "$(dirname $svid9)"
+mkdir -p "$(dirname $svid10)"
+mkdir -p "$(dirname $svid11)"
 mkdir -p "$(dirname $edfig2)"
 mkdir -p "$(dirname $edfig4)"
 mkdir -p "$(dirname $fig2_controller_comparison)"
@@ -106,7 +110,6 @@ fi
 # supplementary video 7 and figure 2G
 if [ ! -f $svid7 ] || [ ! -f $fig2_controller_comparison ]; then
     cd hybrid_controller
-    # sh generate_all_data.sh
     python generate_datapts.py
     jupyter nbconvert --to script generate_figure.ipynb
     python generate_figure.py
@@ -176,6 +179,18 @@ if [ ! -f $edfig4 ]; then
     python train_vision_model.py
     rm train_vision_model.py
 
-    mv outputs/vision_model_stats.pdf "../$edfig4"
+    cp outputs/vision_model_stats.pdf "../$edfig4"
     cd ..
+fi
+
+# supplementary video 10 and 11
+if [ ! -f $svid10 ] || [ ! -f $svid11 ]; then
+    cd integrated_task/preprint_trial
+    python train_navigation_task.py
+    python run_and_visualize.py
+    python merge_videos.py
+    cp outputs/trajectories.pdf "../../$fig3trajectories"
+    mv outputs/example_out/video.mp4 "../../$svid10"
+    mv outputs/navigation_task_merged.mp4 "../../$svid11"
+    cd ../..
 fi
