@@ -115,7 +115,7 @@ def run_hybrid(
             2 * np.pi,
         ]
         preprogrammed_steps.swing_period[leg] = (swing_start, swing_end + np.pi / 4)
-        increment_vals = [0, 0.8, 0, 0.2, 0]
+        increment_vals = [0, 0.8, 0, -0.1, 0]
 
         step_phase_multipler[leg] = interp1d(
             step_points, increment_vals, kind="linear", fill_value="extrapolate"
