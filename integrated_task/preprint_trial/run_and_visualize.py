@@ -16,6 +16,8 @@ from arena import ObstacleOdorArena
 from rl_navigation import NMFNavigation
 from vision_model import VisualFeaturePreprocessor
 
+import tifffile
+
 
 config = load_config()
 color_cycle_rgb = config["color_cycle_rgb"]
@@ -146,8 +148,8 @@ def run_and_visualize(
     out_path,
     spawn_pos=[-0.02, 0, 0.2],
     spawn_orient=(0, 0, np.pi / 2),
-    render_camera="birdeye_cam",
     render_playspeed=0.2,
+    save_bird_eye_frames=False,
     vision_refresh_rate=None,
 ):
     out_path = Path(out_path)
@@ -159,7 +161,7 @@ def run_and_visualize(
         ommatidia_graph=ommatidia_graph,
         test_mode=True,
         debug_mode=True,
-        render_camera=render_camera,
+        render_camera="back_cam",
         render_playspeed=render_playspeed,
         vision_refresh_rate=vision_refresh_rate,
     )
@@ -171,6 +173,10 @@ def run_and_visualize(
     obs, info = sim.reset(spawn_pos=spawn_pos, spawn_orient=spawn_orient)
     obs_hist = [obs]
     info_hist = [info]
+
+    n_frames_prev = 0
+    bird_eye_frames = []
+
     for i in trange(100):
         action, _ = model.predict(obs, deterministic=True)
         obs, reward, terminated, truncated, info = sim.step(action)
@@ -179,15 +185,20 @@ def run_and_visualize(
         reward_hist.append(reward)
         info_hist.append(info)
 
+        if save_bird_eye_frames and len(sim.cam._frames) > n_frames_prev:
+            n_frames_prev = len(sim.cam._frames)
+            bird_eye_frame = sim.controller.physics.render(
+                width=640, height=480, camera_id="birdeye_cam"
+            )
+            bird_eye_frames.append(bird_eye_frame)
+
         if truncated:
             print("truncated")
             break
-        # if info["fly_tgt_dist"] < 2.5:
-        #     print("distance < 3, stopping")
-        #     break
         if terminated:
             print("terminated")
             break
+
     with open(out_path / "info_hist.pkl", "wb") as f:
         pickle.dump(info_hist, f)
 
@@ -199,7 +210,7 @@ def run_and_visualize(
     init_time = 0.05
     with imageio.get_writer(out_path / "video.mp4", fps=sim.cam.fps) as writer:
         for i, (viz_frame, vision_input, odor_input) in enumerate(
-            zip(sim.cam._frames, sim.vision_hist, sim.odor_hist)
+            zip(sim.cam._frames, sim.vision_hist, sim.odor_hist, strict=True)
         ):
             if i * sim.cam._eff_render_interval < init_time:
                 continue
@@ -208,36 +219,13 @@ def run_and_visualize(
                 vision_input,
                 odor_input,
                 odor_color=color_cycle_rgb[1],
-                odor_gain=400,
+                odor_gain=250,
                 panel_height=150,
             )
             writer.append_data(frame)
-    sim.cam.save_video(out_path / "video.mp4")
 
-    # Save snapshot frames
-    individual_frames_dir = out_path / "individual_frames"
-    individual_frames_dir.mkdir(parents=True, exist_ok=True)
-    snapshot_interval_frames = 30
-    snapshots = np.array(
-        [
-            sim.cam._frames[i]
-            for i in range(0, len(sim.cam._frames), snapshot_interval_frames)
-        ]
-    )
-    background = np.median(snapshots, axis=0)
-
-    for i in trange(0, snapshots.shape[0]):
-        img = snapshots[i, :, :, :]
-        is_background = np.isclose(img, background, atol=1).all(axis=2)
-        img_alpha = np.ones((img.shape[0], img.shape[1], 4)) * 255
-        img_alpha[:, :, :3] = img
-        img_alpha[is_background, 3] = 0
-        img_alpha = img_alpha.astype(np.uint8)
-        imageio.imwrite(individual_frames_dir / f"frame_{i}.png", img_alpha)
-
-    imageio.imwrite(
-        individual_frames_dir / "background.png", background.astype(np.uint8)
-    )
+    if save_bird_eye_frames:
+        tifffile.imwrite(out_path / "bird_eye_frames.tif", np.array(bird_eye_frames))
 
 
 if __name__ == "__main__":
@@ -254,18 +242,12 @@ if __name__ == "__main__":
     ]
     num_train_steps = 500000
     model_path = f"data/rl/model.zip"
-    for spawn_pos in spawn_positions:
+
+    for spawn_pos in spawn_positions[2:3]:
         run_and_visualize(
             model_path,
             f"outputs/{num_train_steps}_{spawn_pos[0]}_{spawn_pos[1]}_{spawn_pos[2]}",
             np.array(spawn_pos),
+            save_bird_eye_frames=spawn_pos[0] == 0 and spawn_pos[1] == 0,
+            vision_refresh_rate=100,
         )
-
-    run_and_visualize(
-        model_path,
-        f"outputs/example_out",
-        np.array([0, 0, 0.2]),
-        render_camera="back_cam",
-        render_playspeed=0.2,
-        vision_refresh_rate=100,
-    )

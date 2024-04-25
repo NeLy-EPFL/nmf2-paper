@@ -232,11 +232,6 @@ class NMFNavigation(gym.Env):
                 self.controller.physics.bind(back_cam).pos[0] = back_cam_x
                 render_res = self.controller.render()[0]
 
-                # if render_res is not None:
-                #     import matplotlib.pyplot as plt
-                #     plt.imshow(render_res)
-                #     plt.show()
-                #     assert False
                 if render_res is not None:
                     self.odor_hist.append(raw_obs["odor_intensity"].copy())
                     self.vision_hist.append(raw_obs["vision"].copy())
