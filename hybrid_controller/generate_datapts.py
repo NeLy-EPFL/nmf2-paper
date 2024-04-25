@@ -337,7 +337,7 @@ def run(arena: str, seed: int, pos: np.ndarray, verbose: bool = False):
         actuator_forcerange=(-65.0, 65.0),
     )
     terrain = get_arena(arena)
-    cam = Camera(fly=fly, play_speed=0.1)
+    cam = Camera(fly=fly, play_speed=0.1, camera_id="Animat/camera_right")
     sim = SingleFlySimulation(
         fly=fly,
         cameras=[cam],

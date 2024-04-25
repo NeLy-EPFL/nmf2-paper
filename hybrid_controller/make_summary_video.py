@@ -13,7 +13,7 @@ terrains = ["flat", "gapped", "blocks", "mixed"]
 n_trials = 20
 n_frames = 450
 
-s_ = np.s_[30:, ::-1]
+s_ = np.s_[30:]
 video_dir = Path("outputs/videos")
 
 
