@@ -19,10 +19,14 @@ vid13="${video_dir}/video_13_multimodal_navigation_example_v3_TL.mp4"
 edfig2="${figure_dir}/edfig2_preprogrammed_stepping_v7_TL.pdf"
 edfig4="${figure_dir}/edfig4_vison_model_rl_v5_TL.pdf"
 
+fig1b="${figure_dir}/fig1_schematics_env_overview_v18_TL.png"
+
 fig2b="${figure_dir}/fig2_locomotion_terrains_v18_TL.pdf"
 fig2c="${figure_dir}/fig2_locomotion_critical_slope_v18_TL.pdf"
 fig2g="${figure_dir}/fig2_locomotion_controller_comparison_v19_TL.pdf"
 
+fig3bi="${figure_dir}/fig3_sensory_vision_sim_v15_TL.pdf"
+fig3bii="${figure_dir}/fig3_sensory_behind_fly_view_v15_TL.png"
 fig3c="${figure_dir}/fig3_sensory_visual_taxis_v14_TL.pdf"
 fig3d="${figure_dir}/fig3_sensory_odor_taxis_v14_TL.pdf"
 
@@ -114,6 +118,17 @@ if [ ! -f $vid10 ] || [ ! -f $fig3d ]; then
     rm odor_taxis.py
     mv outputs/odor_taxis.mp4 "../$vid10"
     cp outputs/odor_taxis.pdf "../$fig3d"
+    cd ..
+fi
+
+if [ ! -f $fig1b ] || [ ! -f $fig3bi ] || [ ! -f $fig3bii ]; then
+    cd integrated_task
+    jupyter nbconvert --to script env_demo.ipynb
+    python env_demo.py
+    rm env_demo.py
+    cp outputs/env_overview.png "../$fig1b"
+    cp outputs/vision_sim.pdf "../$fig3bi"
+    cp outputs/behind_fly_view.png "../$fig3bii"
     cd ..
 fi
 
