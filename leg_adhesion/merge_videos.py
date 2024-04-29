@@ -8,8 +8,13 @@ base_path = Path("data/slope_front")
 slope_degrees = np.unique(
     [int(i.stem.split("_")[2]) for i in base_path.glob("CPG_gravity_*.mp4")]
 )
-# ignore_after = {20: 5, 30: 4, 40: 4, 50: 0, 60: 0, 70: 0, 80: 0, 90: 0}
-ignore_after = {}
+ignore_after = {
+    False: {i: 3.5 for i in range(30, 190, 10)},
+    True: {i: 3.5 for i in range(140, 190, 10)},
+}
+ignore_after[False][30] = 4
+# ignore_after[True][140] = 4
+
 fps = None
 # gravity change time - stab duratin + initial duration dropped in rendering
 warm_up_period = 0.4 - 0.2 + 0.05
@@ -45,11 +50,10 @@ for deg in slope_degrees:
             if frame_count / fps * playspeed < warm_up_period:
                 continue
             if (
-                adhesion is False
-                and deg in ignore_after
-                and frame_count / fps > ignore_after[deg]
+                deg in ignore_after[adhesion]
+                and frame_count / fps > ignore_after[adhesion][deg]
             ):
-                frames_by_adhesion[adhesion].append(None)
+                frames_by_adhesion[adhesion].append(np.zeros_like(frame))
                 continue
             if frame_count >= 200 + warm_up_period * fps:
                 print(f"Finished reading {path}")
@@ -105,8 +109,8 @@ for deg in slope_degrees:
         frames_all.append(frame_merged)
 
 # Write video
-Path(base_path).mkdir(exist_ok=True)
-writer = imageio.get_writer(base_path / "climbing.mp4", fps=fps)
+Path("outputs").mkdir(exist_ok=True)
+writer = imageio.get_writer("outputs/climbing.mp4", fps=fps)
 for frame in frames_all:
     writer.append_data(frame)
 
