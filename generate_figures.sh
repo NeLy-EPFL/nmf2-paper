@@ -6,8 +6,8 @@ mkdir -p $video_dir
 mkdir -p $figure_dir
 
 vid2="${video_dir}/video_2_single_step_v5_TL.mp4"
-vid3="${video_dir}/video_3_force_visualization_v6_TL.mp4"
-vid4="${video_dir}/video_4_climbing_v7_TL.mp4"
+vid3="${video_dir}/video_3_force_visualization_v7_TL.mp4"
+vid4="${video_dir}/video_4_climbing_v8_TL.mp4"
 vid5="${video_dir}/video_5_cpg_controller_v9_TL.mp4"
 vid6="${video_dir}/video_6_rule_based_controller_v8_TL.mp4"
 vid7="${video_dir}/video_7_hybrid_controller_v10_TL.mp4"
@@ -16,12 +16,13 @@ vid9="${video_dir}/video_9_visual_taxis_v14_TL.mp4"
 vid10="${video_dir}/video_10_odor_taxis_v8_TL.mp4"
 vid13="${video_dir}/video_13_multimodal_navigation_example_v3_TL.mp4"
 
-edfig2="${figure_dir}/edfig2_preprogrammed_stepping_v7_TL.pdf"
+edfig2="${figure_dir}/edfig2_preprogrammed_stepping_v8_TL.pdf"
 edfig4="${figure_dir}/edfig4_vison_model_rl_v5_TL.pdf"
 
 fig1b="${figure_dir}/fig1_schematics_env_overview_v18_TL.png"
 
-fig2b="${figure_dir}/fig2_locomotion_terrains_v18_TL.pdf"
+fig2b="${figure_dir}/fig2_locomotion_climbing_v18_TL.pdf"
+fig2d="${figure_dir}/fig2_locomotion_terrains_v18_TL.pdf"
 fig2c="${figure_dir}/fig2_locomotion_critical_slope_v18_TL.pdf"
 fig2g="${figure_dir}/fig2_locomotion_controller_comparison_v19_TL.pdf"
 
@@ -56,7 +57,7 @@ if [ ! -f $vid4 ]; then
     cd leg_adhesion
     python generate_slope_datapts.py
     python merge_videos.py
-    mv data/slope_front/climbing.mp4 "../$vid4"
+    mv outputs/climbing.mp4 "../$vid4"
     cd ..
 fi
 
@@ -133,11 +134,11 @@ if [ ! -f $fig1b ] || [ ! -f $fig3bi ] || [ ! -f $fig3bii ]; then
 fi
 
 if [ ! -f $fig2b ]; then
-    cd complex_terrain
-    jupyter nbconvert --to script terrain_comparison.ipynb
-    python terrain_comparison.py
-    rm terrain_comparison.py
-    cp outputs/terrains.pdf "../$fig2b"
+    cd leg_adhesion
+    jupyter nbconvert --to script plot_climbing.ipynb
+    python plot_climbing.py
+    rm plot_climbing.py
+    cp outputs/climbing.pdf "../$fig2b"
     cd ..
 fi
 
@@ -148,6 +149,15 @@ if [ ! -f $fig2c ]; then
     python critical_angle_plot.py
     rm critical_angle_plot.py
     cp outputs/critical_slope.pdf "../$fig2c"
+    cd ..
+fi
+
+if [ ! -f $fig2d ]; then
+    cd complex_terrain
+    jupyter nbconvert --to script terrain_comparison.ipynb
+    python terrain_comparison.py
+    rm terrain_comparison.py
+    cp outputs/terrains.pdf "../$fig2d"
     cd ..
 fi
 
