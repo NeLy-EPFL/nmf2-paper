@@ -266,7 +266,7 @@ if __name__ == "__main__":
     #     tarsus_stiffness=7.5*1000,
     #     non_actuated_joint_damping=1*1000,
     #     non_actuated_joint_stiffness=1*1000,
-    #     actuator_kp=40*1000,
+    #     actuator_gain=40*1000,
     #     adhesion_force=40*1000,
     #     #contact_solimp=(0.9, 0.95, 0.001, 0.5, 2),
     #     #contact_solref= (0.02, 1)

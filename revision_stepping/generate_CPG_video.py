@@ -200,7 +200,7 @@ def main():
     )
 
     sim_params = flygym.mujoco.Parameters(
-        timestep=1e-4, render_mode="saved", render_playspeed=0.1, draw_adhesion=ADHESION, enable_adhesion=ADHESION, actuator_kp=50, tarsus_damping=10.0, tarsus_stiffness=10.0
+        timestep=1e-4, render_mode="saved", render_playspeed=0.1, draw_adhesion=ADHESION, enable_adhesion=ADHESION, actuator_gain=50, tarsus_damping=10.0, tarsus_stiffness=10.0
     )
 
     for single_steps_path in single_steps_paths:

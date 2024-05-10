@@ -49,7 +49,7 @@ def run_cpg(
         return
 
     fly = Fly(
-        actuator_kp=45,
+        actuator_gain=45,
         enable_adhesion=True,
         draw_adhesion=True,
         adhesion_force=adhesion_force,

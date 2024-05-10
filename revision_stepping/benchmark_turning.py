@@ -50,11 +50,11 @@ def main():
 
     if use_old_data:
         sim_params = flygym.mujoco.Parameters(
-        timestep=1e-4, render_mode="saved", render_playspeed=0.1, draw_adhesion=ADHESION, enable_adhesion=ADHESION, actuator_kp=30.0, tarsus_damping=0.05, tarsus_stiffness=2.2
+        timestep=1e-4, render_mode="saved", render_playspeed=0.1, draw_adhesion=ADHESION, enable_adhesion=ADHESION, actuator_gain=30.0, tarsus_damping=0.05, tarsus_stiffness=2.2
     )
     else:
         sim_params = flygym.mujoco.Parameters(
-            timestep=1e-4, render_mode="saved", render_playspeed=0.1, draw_adhesion=ADHESION, enable_adhesion=ADHESION, actuator_kp=30.0, tarsus_damping=10.0, tarsus_stiffness=10.0
+            timestep=1e-4, render_mode="saved", render_playspeed=0.1, draw_adhesion=ADHESION, enable_adhesion=ADHESION, actuator_gain=30.0, tarsus_damping=10.0, tarsus_stiffness=10.0
         )
     if use_old_data:
         preprogrammed_steps = PreprogrammedSteps(path=old_step_path, 

@@ -266,7 +266,7 @@ if __name__ == "__main__":
         timestep=timestep,
         enable_adhesion=True,
         draw_adhesion=True,
-        actuator_kp=20,
+        actuator_gain=20,
         contact_sensor_placements=contact_sensor_placements,
         spawn_pos=(0, 0, 0.2),
     )

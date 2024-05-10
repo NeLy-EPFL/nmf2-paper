@@ -50,7 +50,7 @@ def run_CPG(
     print(f"Running CPG gravity {slope} {axis} adhesion {adhesion}")
 
     fly = Fly(
-        actuator_kp=45,
+        actuator_gain=45,
         enable_adhesion=adhesion,
         draw_adhesion=adhesion,
     )

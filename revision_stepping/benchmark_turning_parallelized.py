@@ -67,14 +67,14 @@ def initialize_nmf():
         sim_params = flygym.mujoco.Parameters(
             timestep=1e-4, render_mode=render_mode, render_playspeed=0.1,
             draw_adhesion=adhesion, enable_adhesion=adhesion,
-            actuator_kp=acutator_kp, tarsus_damping=0.05, tarsus_stiffness=2.2
+            actuator_gain=acutator_kp, tarsus_damping=0.05, tarsus_stiffness=2.2
             )
         preprogrammed_steps = PreprogrammedSteps(path=old_step_path, 
                                                  neutral_pos_indexes = np.zeros(6, dtype=int))
     else:
         sim_params = flygym.mujoco.Parameters(
             timestep=1e-4, render_mode=render_mode, render_playspeed=0.1,
-            draw_adhesion=adhesion, enable_adhesion=adhesion, actuator_kp=acutator_kp
+            draw_adhesion=adhesion, enable_adhesion=adhesion, actuator_gain=acutator_kp
         )
         preprogrammed_steps = PreprogrammedSteps()
     
