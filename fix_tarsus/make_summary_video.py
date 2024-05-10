@@ -74,7 +74,7 @@ def draw_frame(curr_video, frame_within_video):
             ax = axs[i, j]
             ax.imshow(all_videos[(y, x)][curr_video][frame_within_video])
             ax.axis("off")
-            ax.text(7, 60, f"Trial {curr_video + 1}", fontname="Helvetica", fontsize=20)
+            ax.text(7, 60, f"Trial {curr_video + 1}", fontname="Arial", fontsize=20)
 
             pos = ax.get_position()
             y_pos_label = pos.y0 + 0.5 * pos.height - 0.05
@@ -92,7 +92,7 @@ def draw_frame(curr_video, frame_within_video):
             fontsize=26.0,
             color=color,
             weight="bold",
-            fontname="Helvetica",
+            fontname="Arial",
             rotation=90.0,
             ha="center",
         )
@@ -106,7 +106,7 @@ def draw_frame(curr_video, frame_within_video):
             fontsize=26.0,
             color=color,
             weight="bold",
-            fontname="Helvetica",
+            fontname="Arial",
             ha="center",
         )
 
@@ -117,7 +117,7 @@ def draw_frame(curr_video, frame_within_video):
         transform=fig.transFigure,
         fontsize=26.0,
         color=color,
-        fontname="Helvetica",
+        fontname="Arial",
         ha="center",
     )
     return fig

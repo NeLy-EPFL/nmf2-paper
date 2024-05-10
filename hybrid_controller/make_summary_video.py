@@ -60,7 +60,7 @@ def init_figure(trial_id):
             fontsize=26.0,
             color=color,
             weight="bold",
-            fontname="Helvetica",
+            fontname="Arial",
             rotation=90.0,
             ha="center",
         )
@@ -80,7 +80,7 @@ def init_figure(trial_id):
             fontsize=26,
             color=color,
             weight="bold",
-            fontname="Helvetica",
+            fontname="Arial",
             ha="center",
         )
 
@@ -91,7 +91,7 @@ def init_figure(trial_id):
         transform=fig.transFigure,
         fontsize=26.0,
         color=color,
-        fontname="Helvetica",
+        fontname="Arial",
         ha="center",
     )
     return fig, images.ravel()
