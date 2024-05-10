@@ -5,34 +5,34 @@ figure_dir="_outputs/FIGURES"
 mkdir -p $video_dir
 mkdir -p $figure_dir
 
-vid2="${video_dir}/video_2_single_step_v5_TL.mp4"
-vid3="${video_dir}/video_3_force_visualization_v7_TL.mp4"
-vid4="${video_dir}/video_4_climbing_v8_TL.mp4"
-vid5="${video_dir}/video_5_cpg_controller_v9_TL.mp4"
-vid6="${video_dir}/video_6_rule_based_controller_v8_TL.mp4"
-vid7="${video_dir}/video_7_hybrid_controller_v10_TL.mp4"
-vid8="${video_dir}/video_8_controller_comparison_v10_TL_small.mp4"
-vid9="${video_dir}/video_9_visual_taxis_v14_TL.mp4"
-vid10="${video_dir}/video_10_odor_taxis_v8_TL.mp4"
-vid13="${video_dir}/video_13_multimodal_navigation_example_v3_TL.mp4"
+vid2="${video_dir}/video_2_single_step.mp4"
+vid3="${video_dir}/video_3_force_visualization.mp4"
+vid4="${video_dir}/video_4_climbing.mp4"
+vid5="${video_dir}/video_5_cpg_controller.mp4"
+vid6="${video_dir}/video_6_rule_based_controller.mp4"
+vid7="${video_dir}/video_7_hybrid_controller.mp4"
+vid8="${video_dir}/video_8_controller_comparison_small.mp4"
+vid9="${video_dir}/video_9_visual_taxis.mp4"
+vid10="${video_dir}/video_10_odor_taxis.mp4"
+vid13="${video_dir}/video_13_multimodal_navigation_example.mp4"
 
-edfig2="${figure_dir}/edfig2_preprogrammed_stepping_v8_TL.pdf"
-edfig4="${figure_dir}/edfig4_vison_model_rl_v5_TL.pdf"
+edfig2="${figure_dir}/edfig2_preprogrammed_stepping.pdf"
+edfig4="${figure_dir}/edfig4_vison_model_rl.pdf"
 
-fig1b="${figure_dir}/fig1_schematics_env_overview_v18_TL.png"
+fig1b="${figure_dir}/fig1_schematics_env_overview.png"
 
-fig2b="${figure_dir}/fig2_locomotion_climbing_v18_TL.pdf"
-fig2d="${figure_dir}/fig2_locomotion_terrains_v18_TL.pdf"
-fig2c="${figure_dir}/fig2_locomotion_critical_slope_v18_TL.pdf"
-fig2g="${figure_dir}/fig2_locomotion_controller_comparison_v19_TL.pdf"
+fig2b="${figure_dir}/fig2_locomotion_climbing.pdf"
+fig2d="${figure_dir}/fig2_locomotion_terrains.pdf"
+fig2c="${figure_dir}/fig2_locomotion_critical_slope.pdf"
+fig2g="${figure_dir}/fig2_locomotion_controller_comparison.pdf"
 
-fig3bi="${figure_dir}/fig3_sensory_vision_sim_v15_TL.pdf"
-fig3bii="${figure_dir}/fig3_sensory_behind_fly_view_v15_TL.png"
-fig3c="${figure_dir}/fig3_sensory_visual_taxis_v14_TL.pdf"
-fig3d="${figure_dir}/fig3_sensory_odor_taxis_v14_TL.pdf"
+fig3bi="${figure_dir}/fig3_sensory_vision_sim.pdf"
+fig3bii="${figure_dir}/fig3_sensory_behind_fly_view.png"
+fig3c="${figure_dir}/fig3_sensory_visual_taxis.pdf"
+fig3d="${figure_dir}/fig3_sensory_odor_taxis.pdf"
 
-fig5b="${figure_dir}/fig5_integration_trajectory_v14_TL.pdf"
-fig5c="${figure_dir}/fig5_integration_trajectories_v14_TL.pdf"
+fig5b="${figure_dir}/fig5_integration_trajectory.pdf"
+fig5c="${figure_dir}/fig5_integration_trajectories.pdf"
 
 if [ ! -f $vid2 ] || [ ! -f $edfig2 ] ; then
     cd step_data
@@ -178,18 +178,18 @@ if [ ! -f $edfig4 ]; then
     cd ..
 fi
 
-if [ ! -f $vid13 ] || [ ! -f $fig5b ] || [ ! -f $fig5c ]; then
-    cd integrated_task/preprint_trial
-    python train_navigation_task.py
-    python run_and_visualize.py
-    python merge_videos.py
+# if [ ! -f $vid13 ] || [ ! -f $fig5b ] || [ ! -f $fig5c ]; then
+#     cd integrated_task/preprint_trial
+#     python train_navigation_task.py
+#     python run_and_visualize.py
+#     python merge_videos.py
 
-    jupyter nbconvert --to script generate_figures.ipynb
-    python generate_figures.py
-    rm generate_figures.py
+#     jupyter nbconvert --to script generate_figures.ipynb
+#     python generate_figures.py
+#     rm generate_figures.py
 
-    cp outputs/trajectory.pdf "../../$fig5b"
-    cp outputs/trajectories.pdf "../../$fig5c"
-    mv outputs/navigation_task_merged.mp4 "../../$vid13"
-    cd ../..
-fi
+#     cp outputs/trajectory.pdf "../../$fig5b"
+#     cp outputs/trajectories.pdf "../../$fig5c"
+#     mv outputs/navigation_task_merged.mp4 "../../$vid13"
+#     cd ../..
+# fi
