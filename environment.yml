@@ -17,3 +17,7 @@ dependencies:
   - tensorboard
   - tensorboardx
   - pandas
+  - pip
+  - pip:
+    - git+https://github.com/NeLy-EPFL/flygym.git@dev-v1.0.0
+    - decord
