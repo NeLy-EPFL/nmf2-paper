@@ -2,11 +2,13 @@ name: nmf2-paper
 channels:
   - conda-forge
 dependencies:
-  - python=3.11
+  - python=3.12
   - ffmpeg
+  - tifffile
+  - pytorch::pytorch
+  - pytorch::pytorch-cuda
+  - stable-baselines3
+  - pyg::pyg
   - pip
   - pip:
     - git+https://github.com/NeLy-EPFL/flygym.git@resubmission-20240501#egg=flygym[dev,examples]
-    - torch_geometric
-    - stable-baselines3[extra]
-    - tifffile
