@@ -3,8 +3,10 @@ channels:
   - conda-forge
 dependencies:
   - python=3.11
-  - stable-baselines3
   - ffmpeg
   - pip
   - pip:
     - git+https://github.com/NeLy-EPFL/flygym.git@resubmission-20240501#egg=flygym[dev,examples]
+    - torch_geometric
+    - stable-baselines3[extra]
+    - tifffile
