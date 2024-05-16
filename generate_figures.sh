@@ -89,7 +89,7 @@ if [ ! -f $vid7 ]; then
 fi
 
 if [ ! -f $vid8 ] || [ ! -f $fig2g ]; then
-    cd hybrid_controller
+    cd controller_comparison
     python generate_datapts.py
     jupyter nbconvert --to script generate_figure.ipynb
     python generate_figure.py
