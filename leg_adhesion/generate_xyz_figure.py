@@ -49,7 +49,7 @@ for pkl_file in pkl_files:
         [obs["fly"][0] for obs in obs_list[n_stabilization_steps:]]
     )
     xyz_positions_list.append(xyz_positions)
-    # Rotate the x,y,z positions if the gravtiy is changed 
+    # Rotate the x,y,z positions if the gravtiy is changed
     # i > gravity_switching_step-n_stabilization_steps
     xyz_positions_rotated = np.array(
         [
@@ -135,8 +135,7 @@ for coord1, coord2 in [["x", "y"], ["x", "z"], ["y", "z"]]:
         )
 
     # No labels on ax 0
-    print(f"Length after {2000} steps: "
-          f"{coord1_values[0][2000:].size} steps")
+    print(f"Length after {2000} steps: " f"{coord1_values[0][2000:].size} steps")
 
     axs[0].set_title("Original")
     axs[0].set_xlabel(f"{coord1} position (mm)")
