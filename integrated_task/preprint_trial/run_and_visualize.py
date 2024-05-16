@@ -241,9 +241,9 @@ if __name__ == "__main__":
         (1, 1, 0.2),
     ]
     num_train_steps = 500000
-    model_path = f"data/rl/model.zip"
+    model_path = f"data/rl_model.zip"
 
-    for spawn_pos in spawn_positions[2:3]:
+    for spawn_pos in spawn_positions:
         run_and_visualize(
             model_path,
             f"outputs/{num_train_steps}_{spawn_pos[0]}_{spawn_pos[1]}_{spawn_pos[2]}",

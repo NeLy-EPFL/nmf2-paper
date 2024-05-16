@@ -180,7 +180,12 @@ fi
 
 if [ ! -f $vid13 ] || [ ! -f $fig5b ] || [ ! -f $fig5c ]; then
     cd integrated_task/preprint_trial
-    python train_navigation_task.py
+
+    if [ ! -f "data/rl_model.zip" ]; then
+        echo "Downloading RL model..."
+        python train_navigation_task.py
+    fi
+
     python run_and_visualize.py
     python merge_videos.py
 
