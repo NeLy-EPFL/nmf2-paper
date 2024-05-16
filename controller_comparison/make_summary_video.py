@@ -5,7 +5,6 @@ from subprocess import run
 import imageio
 import matplotlib.pyplot as plt
 import numpy as np
-from decord import VideoReader
 from joblib import Parallel, delayed
 
 controllers = ["cpg", "rule_based", "hybrid"]
@@ -19,12 +18,13 @@ video_dir = Path("outputs/videos")
 
 def get_video_reader(trial_id, controller, terrain):
     path = video_dir / f"{controller}_{terrain}_{trial_id}.mp4"
-    return VideoReader(path.as_posix())
+    return imageio.get_reader(path)
 
 
 def get_video_props():
-    video_reader = get_video_reader(0, "cpg", "flat")
-    return (*video_reader[0].asnumpy()[s_].shape[:2], video_reader.get_avg_fps())
+    with get_video_reader(0, "cpg", "flat") as reader:
+        metadata = reader.get_meta_data()
+        return (*metadata["size"][::-1], metadata["fps"])
 
 
 img_height, img_width, fps = get_video_props()
@@ -43,56 +43,44 @@ def init_figure(trial_id):
         for j in range(len(terrains)):
             ax = axs[i, j]
             images[i, j] = ax.imshow(empty_img)
-            ax.axis("off")
-            ax.text(7, 60, f"Trial {trial_id + 1}", fontname="Arial", fontsize=20)
+
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+
+            ax.set_xticks([])
+            ax.set_yticks([])
+
+            if i + j == 0:
+                ax.text(7, 60, f"Trial {trial_id + 1}", fontsize=20, fontname="Arial")
 
     controller_label_config = [
-        ("CPG\ncontroller", 0.7216, "#4e79a7"),
-        ("Rule-based\ncontroller", 0.4266, "#f28e2b"),
-        ("Hybrid\ncontroller", 0.1494, "#7a653b"),
+        ("CPG\ncontroller", "#4e79a7"),
+        ("Rule-based\ncontroller", "#f28e2b"),
+        ("Hybrid\ncontroller", "#7a653b"),
     ]
-    for text, y_pos, color in controller_label_config:
-        fig.text(
-            0.0606,
-            y_pos - 0.05,
-            text,
-            transform=fig.transFigure,
-            fontsize=26.0,
-            color=color,
-            weight="bold",
-            fontname="Arial",
-            rotation=90.0,
-            ha="center",
-        )
 
-    terrain_label_config = [
-        ("Flat terrain", 0.2039, "#000000"),
-        ("Gapped terrain", 0.4180, "#000000"),
-        ("Blocks terrain", 0.6320, "#000000"),
-        ("Mixed terrain", 0.8461, "#000000"),
+    for i, (text, color) in enumerate(controller_label_config):
+        axs[i, 0].set_ylabel(text, color=color, size=26, fontname="Arial", labelpad=10)
+
+    terrain_labels = [
+        "Flat terrain",
+        "Gapped terrain",
+        "Blocks terrain",
+        "Mixed terrain",
     ]
-    for text, x_pos, color in terrain_label_config:
-        fig.text(
-            x_pos,
-            0.92,
-            text,
-            transform=fig.transFigure,
-            fontsize=26,
-            color=color,
-            weight="bold",
-            fontname="Arial",
-            ha="center",
-        )
+
+    for j, text in enumerate(terrain_labels):
+        axs[0, j].set_title(text, size=26, fontname="Arial")
 
     fig.text(
         0.8461,
         0.0220,
         "0.1x speed",
+        color="k",
         transform=fig.transFigure,
-        fontsize=26.0,
-        color=color,
-        fontname="Arial",
+        fontsize=26,
         ha="center",
+        fontname="Arial",
     )
     return fig, images.ravel()
 
@@ -112,7 +100,8 @@ def write_trial_video(trial_id, n_frames=450):
                 continue
             for image, video_reader in zip(images, video_readers):
                 if frame_id < len(video_reader):
-                    img = video_reader[frame_id].asnumpy()[s_]
+                    video_reader.set_image_index(frame_id)
+                    img = video_reader.get_next_data()[s_]
                 else:
                     img = empty_img
                 image.set_data(img)
@@ -120,6 +109,9 @@ def write_trial_video(trial_id, n_frames=450):
             fig.canvas.draw()
             frame = np.array(fig.canvas.buffer_rgba())[..., :3]
             writer.append_data(frame)
+
+    for reader in video_readers:
+        reader.close()
 
 
 Parallel(n_jobs=-1)(
