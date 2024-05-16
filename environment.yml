@@ -1,23 +1,10 @@
-name: flygym
+name: nmf2-paper
 channels:
   - conda-forge
-  - pytorch
-  - nvidia
 dependencies:
   - python=3.11
-  - pytorch::pytorch
-  - pytorch::pytorch-cuda=12.1
-  - pytorch::torchvision
-  - pytorch-lightning
-  - lightning
-  - pytorch_geometric
-  - rich
   - stable-baselines3
-  - seaborn
-  - tensorboard
-  - tensorboardx
-  - pandas
+  - ffmpeg
   - pip
   - pip:
-    - git+https://github.com/NeLy-EPFL/flygym.git@dev-v1.0.0
-    - decord
+    - git+https://github.com/NeLy-EPFL/flygym.git@resubmission-20240501#egg=flygym[dev,examples]
