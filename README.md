@@ -3,6 +3,13 @@
 This repository contains the scripts to generate the figures and videos for the NeuroMechFly v2 manuscript.
 
 ## Instructions
+Clone this repository:
+```sh
+git clone git@github.com:NeLy-EPFL/nmf2-paper.git
+cd nmf2-paper
+git checkout dev-v1.0.0
+```
+
 Create the conda environment using the provided `environment.yml` file:
 ```sh
 conda env create --file environment.yml
