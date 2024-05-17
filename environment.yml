@@ -2,12 +2,14 @@ name: nmf2-paper
 channels:
   - conda-forge
 dependencies:
-  - python=3.12
+  - python=3.11
   - ffmpeg
   - tifffile
   - pytorch::pytorch
   - pytorch::pytorch-cuda
+  - pytorch::torchvision
   - stable-baselines3
+  - tensorboard
   - pyg::pyg
   - pip
   - pip:

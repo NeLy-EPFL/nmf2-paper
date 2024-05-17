@@ -182,7 +182,6 @@ if [ ! -f $vid13 ] || [ ! -f $fig5b ] || [ ! -f $fig5c ]; then
     cd integrated_task/preprint_trial
 
     if [ ! -f "data/rl_model.zip" ]; then
-        echo "Downloading RL model..."
         python train_navigation_task.py
     fi
 
