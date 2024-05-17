@@ -2,12 +2,13 @@ import numpy as np
 from dm_control import mjcf
 from flygym import Fly
 
+
 class ColoredFly(Fly):
     def __init__(self, recolor_types=("femur", "tibia"), **kwargs):
         self.default_segment_rgba = {}
         self.recolor_types = recolor_types
         super().__init__(**kwargs)
-    
+
     def _set_geom_colors(self):
         for type_, specs in self.config["appearance"].items():
             # Define texture and material
@@ -15,8 +16,8 @@ class ColoredFly(Fly):
             rgba = specs["material"]["rgba"]
 
             if specs["texture"] is not None:
-                rgb1= specs["texture"]["rgb1"]
-                rgb2= specs["texture"]["rgb2"]
+                rgb1 = specs["texture"]["rgb1"]
+                rgb2 = specs["texture"]["rgb2"]
                 self.model.asset.add(
                     "texture",
                     name=f"{type_}_texture",
@@ -29,7 +30,7 @@ class ColoredFly(Fly):
                     rgb2=(1, 1, 1) if recolor else rgb2,
                     markrgb=specs["texture"]["markrgb"],
                 )
-            
+
                 if recolor:
                     rgba = (*np.mean([rgb1, rgb2], axis=0), rgba[3])
 
@@ -50,7 +51,7 @@ class ColoredFly(Fly):
                 if geom is None:
                     geom = self.model.find("geom", f"{segment}")
                 geom.material = f"{type_}_material"
-    
+
     def change_segment_color(self, physics: mjcf.Physics, segment: str, color=None):
         """Change the color of a segment of the fly.
 
@@ -65,5 +66,5 @@ class ColoredFly(Fly):
         """
         if not color:
             color = self.default_segment_rgba[segment]
-        
-        physics.named.model.geom_rgba[f"{self.name}/{segment}"][:len(color)] = color
+
+        physics.named.model.geom_rgba[f"{self.name}/{segment}"][: len(color)] = color

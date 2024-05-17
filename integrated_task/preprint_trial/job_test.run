@@ -9,6 +9,6 @@
 
 $HOME/miniconda3/bin/conda init bash
 . $HOME/miniconda3/etc/profile.d/conda.sh
-conda activate flygym
+conda activate nmf2-paper
 
 python run_and_visualize.py

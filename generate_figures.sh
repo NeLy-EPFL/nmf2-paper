@@ -89,7 +89,7 @@ if [ ! -f $vid7 ]; then
 fi
 
 if [ ! -f $vid8 ] || [ ! -f $fig2g ]; then
-    cd hybrid_controller
+    cd controller_comparison
     python generate_datapts.py
     jupyter nbconvert --to script generate_figure.ipynb
     python generate_figure.py
@@ -180,7 +180,12 @@ fi
 
 if [ ! -f $vid13 ] || [ ! -f $fig5b ] || [ ! -f $fig5c ]; then
     cd integrated_task/preprint_trial
-    python train_navigation_task.py
+
+    if [ ! -f "data/rl_model.zip" ]; then
+        echo "Downloading RL model..."
+        python train_navigation_task.py
+    fi
+
     python run_and_visualize.py
     python merge_videos.py
 
