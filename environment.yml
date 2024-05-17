@@ -4,9 +4,13 @@ channels:
 dependencies:
   - python=3.11
   - ffmpeg
+  - tifffile
+  - pytorch::pytorch
+  - pytorch::pytorch-cuda
+  - pytorch::torchvision
+  - stable-baselines3
+  - tensorboard
+  - pyg::pyg
   - pip
   - pip:
     - git+https://github.com/NeLy-EPFL/flygym.git@resubmission-20240501#egg=flygym[dev,examples]
-    - torch_geometric
-    - stable-baselines3[extra]
-    - tifffile

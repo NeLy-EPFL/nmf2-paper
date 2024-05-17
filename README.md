@@ -1,1 +1,29 @@
-This repository contains figures and demos included in the NeuroMechFly 2.0 manuscript. For the FlyGym library, please go to [this repository](https://github.com/NeLy-EPFL/flygym). **We are making changes to the FlyGym API to make it more user friendly. To reproduce the exact results from the paper, please be sure to use the older [v0.1.0 version](https://github.com/NeLy-EPFL/flygym/releases/tag/v0.1.0).**
+# NeuroMechFly v2 Manuscript Repository
+
+This repository contains the scripts to generate the figures and videos for the NeuroMechFly v2 manuscript.
+
+## Instructions
+Create the conda environment using the provided `environment.yml` file:
+```sh
+conda env create --file environment.yml
+```
+
+If you are working on a machine without a display (e.g., a server), you will need to switch the renderer to EGL:
+```sh
+conda activate nmf2-paper
+conda env config vars set MUJOCO_GL=egl PYOPENGL_PLATFORM=egl
+conda deactivate
+```
+
+Some tasks require time-consuming data collection and training. To save time, you can download the data and trained models:
+```sh
+./download_data.sh
+```
+
+Generate the figures and videos by running the following script:
+```sh
+conda activate nmf2-paper
+./generate_figures.sh
+```
+
+Note that the results may vary slightly due to differences in system architecture.
