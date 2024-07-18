@@ -19,6 +19,16 @@ vid10="${video_dir}/video_10_odor_taxis.mp4"
 vid13="${video_dir}/video_13_multimodal_navigation_example.mp4"
 
 edfig2="${figure_dir}/edfig2_preprogrammed_stepping.pdf"
+
+edfig3a="${figure_dir}/edfig3a_birdeye_view.png"
+edfig3b="${figure_dir}/edfig3b_birdeye_zoom_view.png"
+edfig3ci="${figure_dir}/edfig3ci_raw_img_L.png"
+edfig3cii="${figure_dir}/edfig3cii_raw_img_R.png"
+edfig3di="${figure_dir}/edfig3di_corrected_img_L.png"
+edfig3dii="${figure_dir}/edfig3dii_corrected_img_R.png"
+edfig3ei="${figure_dir}/edfig3ei_human_view_L.png"
+edfig3eii="${figure_dir}/edfig3eii_human_view_R.png"
+
 edfig6="${figure_dir}/edfig6_vison_model_rl.pdf"
 
 fig1b="${figure_dir}/fig1b_schematics_env_overview.png"
@@ -52,6 +62,23 @@ if [ ! -f $vid2 ] || [ ! -f $edfig2 ] || [ ! -f $data_ed2fig2 ]; then
     mv outputs/single_step.mp4 "../$vid2"
     mv outputs/single_step.pdf "../$edfig2"
     mv outputs/single_step.csv "../$data_ed2fig2"
+    cd ..
+fi
+
+if [ ! -f $edfig3a ] || [ ! -f $edfig3b ] || [ ! -f $edfig3ci ] || [ ! -f $edfig3cii ] || \
+[ ! -f $edfig3di ] || [ ! -f $edfig3dii ] || [ ! -f $edfig3ei ] || [ ! -f $edfig3eii ]; then
+    cd visual_inputs
+    jupyter nbconvert --to script calibration_environment.ipynb
+    python calibration_environment.py
+    rm calibration_environment.py
+    mv outputs/calibration_env/birdeye_view.png "../$edfig3a"
+    mv outputs/calibration_env/birdeye_zoom_view.png "../$edfig3b"
+    mv outputs/calibration_env/raw_img_L.png "../$edfig3ci"
+    mv outputs/calibration_env/raw_img_R.png "../$edfig3cii"
+    mv outputs/calibration_env/corrected_img_L.png "../$edfig3di"
+    mv outputs/calibration_env/corrected_img_R.png "../$edfig3dii"
+    mv outputs/calibration_env/human_view_L.png "../$edfig3ei"
+    mv outputs/calibration_env/human_view_R.png "../$edfig3eii"
     cd ..
 fi
 
