@@ -1,9 +1,11 @@
 #!/bin/bash
 video_dir="_outputs/VIDEOS"
 figure_dir="_outputs/FIGURES"
+data_dir="_outputs/DATA"
 
 mkdir -p $video_dir
 mkdir -p $figure_dir
+mkdir -p $data_dir
 
 vid2="${video_dir}/video_2_single_step.mp4"
 vid3="${video_dir}/video_3_force_visualization.mp4"
@@ -17,30 +19,35 @@ vid10="${video_dir}/video_10_odor_taxis.mp4"
 vid13="${video_dir}/video_13_multimodal_navigation_example.mp4"
 
 edfig2="${figure_dir}/edfig2_preprogrammed_stepping.pdf"
-edfig4="${figure_dir}/edfig4_vison_model_rl.pdf"
+edfig6="${figure_dir}/edfig6_vison_model_rl.pdf"
 
-fig1b="${figure_dir}/fig1_schematics_env_overview.png"
+fig1b="${figure_dir}/fig1b_schematics_env_overview.png"
 
-fig2b="${figure_dir}/fig2_locomotion_climbing.pdf"
-fig2d="${figure_dir}/fig2_locomotion_terrains.pdf"
-fig2c="${figure_dir}/fig2_locomotion_critical_slope.pdf"
-fig2g="${figure_dir}/fig2_locomotion_controller_comparison.pdf"
+fig2b="${figure_dir}/fig2b_locomotion_climbing.pdf"
+fig2d="${figure_dir}/fig2d_locomotion_terrains.pdf"
+fig2c="${figure_dir}/fig2c_locomotion_critical_slope.pdf"
+fig2g="${figure_dir}/fig2g_locomotion_controller_comparison.pdf"
 
-fig3bi="${figure_dir}/fig3_sensory_vision_sim.pdf"
-fig3bii="${figure_dir}/fig3_sensory_behind_fly_view.png"
-fig3c="${figure_dir}/fig3_sensory_visual_taxis.pdf"
-fig3d="${figure_dir}/fig3_sensory_odor_taxis.pdf"
+fig3bi="${figure_dir}/fig3bi_sensory_vision_sim.pdf"
+fig3bii="${figure_dir}/fig3bii_sensory_behind_fly_view.png"
+fig3c="${figure_dir}/fig3c_sensory_visual_taxis.pdf"
+fig3d="${figure_dir}/fig3d_sensory_odor_taxis.pdf"
 
-fig5b="${figure_dir}/fig5_integration_trajectory.pdf"
-fig5c="${figure_dir}/fig5_integration_trajectories.pdf"
+fig5b="${figure_dir}/fig5b_integration_trajectory.pdf"
+fig5c="${figure_dir}/fig5c_integration_trajectories.pdf"
 
-if [ ! -f $vid2 ] || [ ! -f $edfig2 ] ; then
+data2c="${data_dir}/fig2c_locomotion_critical_slope.csv"
+data2g="${data_dir}/fig2g_locomotion_controller_comparison.csv"
+dataed2="${data_dir}/edfig2_preprogrammed_stepping.csv"
+
+if [ ! -f $vid2 ] || [ ! -f $edfig2 ] || [ ! -f $dataed2 ]; then
     cd step_data
     jupyter nbconvert --to script stepping_illustration.ipynb
     python stepping_illustration.py
     rm stepping_illustration.py
     mv outputs/single_step.mp4 "../$vid2"
     cp outputs/single_step.pdf "../$edfig2"
+    cp outputs/single_step.csv "../$dataed2"
     cd ..
 fi
 
@@ -88,7 +95,7 @@ if [ ! -f $vid7 ]; then
     cd ..
 fi
 
-if [ ! -f $vid8 ] || [ ! -f $fig2g ]; then
+if [ ! -f $vid8 ] || [ ! -f $fig2g ] || [ ! -f $data2g ]; then
     cd controller_comparison
     python generate_datapts.py
     jupyter nbconvert --to script generate_figure.ipynb
@@ -99,6 +106,7 @@ if [ ! -f $vid8 ] || [ ! -f $fig2g ]; then
     rm outputs/controller_comparison.mp4
     mv outputs/controller_comparison_small.mp4 "../$vid8"
     cp outputs/speed_comparison.pdf "../$fig2g"
+    cp outputs/speed_comparison.csv "../$data2g"
     cd ..
 fi
 
@@ -142,13 +150,14 @@ if [ ! -f $fig2b ]; then
     cd ..
 fi
 
-if [ ! -f $fig2c ]; then
+if [ ! -f $fig2c ] || [ ! -f $data2c ]; then
     cd leg_adhesion
-    python generate_gainslope_dataset_multiprocessing.py
+    # python generate_gainslope_dataset_multiprocessing.py
     jupyter nbconvert --to script critical_angle_plot.ipynb
     python critical_angle_plot.py
     rm critical_angle_plot.py
     cp outputs/critical_slope.pdf "../$fig2c"
+    cp outputs/critical_slope.csv "../$data2c"
     cd ..
 fi
 
@@ -161,7 +170,7 @@ if [ ! -f $fig2d ]; then
     cd ..
 fi
 
-if [ ! -f $edfig4 ]; then
+if [ ! -f $edfig6 ]; then
     cd integrated_task
 
     if [ ! -f "data/vision/visual_training_data.pkl" ]; then
@@ -174,7 +183,7 @@ if [ ! -f $edfig4 ]; then
     python train_vision_model.py
     rm train_vision_model.py
 
-    cp outputs/vision_model_stats.pdf "../$edfig4"
+    cp outputs/vision_model_stats.pdf "../$edfig6"
     cd ..
 fi
 
