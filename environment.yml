@@ -1,16 +1,27 @@
 name: nmf2-paper
 channels:
   - conda-forge
+  - defaults
 dependencies:
-  - python=3.11
-  - ffmpeg
-  - tifffile
-  - pytorch::pytorch
+  - python=3.12
+  - numpy=1.26.4
+  - scipy=1.13.0
+  - opencv=4.9.0
+  - numba=0.59.1
+  - pandas=2.2.2
+  - gymnasium=0.29.1
+  - mujoco-python=3.1.4
+  - dm-control=1.0.18
+  - pytorch::pytorch=2.2.2
+  - lightning=2.2.2
+  - pyg::pyg=2.5.0
+  - stable-baselines3=2.3
   - pytorch::pytorch-cuda
   - pytorch::torchvision
-  - stable-baselines3
+  - ffmpeg
+  - tifffile
   - tensorboard
-  - pyg::pyg
   - pip
   - pip:
     - git+https://github.com/NeLy-EPFL/flygym.git@resubmission-20240501#egg=flygym[dev,examples]
+    - phiflow==2.5.3
