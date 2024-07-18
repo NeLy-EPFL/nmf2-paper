@@ -1,5 +1,5 @@
 ffmpeg \
-    -y
+    -y \
     -i outputs/controller_comparison.mp4 \
     -vcodec libx264 \
     -crf 34 \
