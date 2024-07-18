@@ -36,18 +36,22 @@ fig3d="${figure_dir}/fig3d_sensory_odor_taxis.pdf"
 fig5b="${figure_dir}/fig5b_integration_trajectory.pdf"
 fig5c="${figure_dir}/fig5c_integration_trajectories.pdf"
 
-data2c="${data_dir}/fig2c_locomotion_critical_slope.csv"
-data2g="${data_dir}/fig2g_locomotion_controller_comparison.csv"
-dataed2="${data_dir}/edfig2_preprogrammed_stepping.csv"
+data_fig2c="${data_dir}/fig2c_locomotion_critical_slope.csv"
+data_fig2g="${data_dir}/fig2g_locomotion_controller_comparison.csv"
+data_ed2fig2="${data_dir}/edfig2_preprogrammed_stepping.csv"
+data_edfig6c="${data_dir}/edfig6c_vison_model_rl_direction.csv"
+data_edfig6d="${data_dir}/edfig6d_vison_model_rl_distance.csv"
+data_edfig6e="${data_dir}/edfig6e_vison_model_rl_azimuth.csv"
+data_edfig6f="${data_dir}/edfig6f_vison_model_rl_size.csv"
 
-if [ ! -f $vid2 ] || [ ! -f $edfig2 ] || [ ! -f $dataed2 ]; then
+if [ ! -f $vid2 ] || [ ! -f $edfig2 ] || [ ! -f $data_ed2fig2 ]; then
     cd step_data
     jupyter nbconvert --to script stepping_illustration.ipynb
     python stepping_illustration.py
     rm stepping_illustration.py
     mv outputs/single_step.mp4 "../$vid2"
-    cp outputs/single_step.pdf "../$edfig2"
-    cp outputs/single_step.csv "../$dataed2"
+    mv outputs/single_step.pdf "../$edfig2"
+    mv outputs/single_step.csv "../$data_ed2fig2"
     cd ..
 fi
 
@@ -95,7 +99,7 @@ if [ ! -f $vid7 ]; then
     cd ..
 fi
 
-if [ ! -f $vid8 ] || [ ! -f $fig2g ] || [ ! -f $data2g ]; then
+if [ ! -f $vid8 ] || [ ! -f $fig2g ] || [ ! -f $data_fig2g ]; then
     cd controller_comparison
     python generate_datapts.py
     jupyter nbconvert --to script generate_figure.ipynb
@@ -105,8 +109,8 @@ if [ ! -f $vid8 ] || [ ! -f $fig2g ] || [ ! -f $data2g ]; then
     sh compress_video.sh
     rm outputs/controller_comparison.mp4
     mv outputs/controller_comparison_small.mp4 "../$vid8"
-    cp outputs/speed_comparison.pdf "../$fig2g"
-    cp outputs/speed_comparison.csv "../$data2g"
+    mv outputs/speed_comparison.pdf "../$fig2g"
+    mv outputs/speed_comparison.csv "../$data_fig2g"
     cd ..
 fi
 
@@ -116,7 +120,7 @@ if [ ! -f $vid9 ] || [ ! -f $fig3c ]; then
     python visual_taxis.py 0
     rm visual_taxis.py
     mv outputs/object_following_with_retina_images.mp4 "../$vid9"
-    cp outputs/visual_taxis.pdf "../$fig3c"
+    mv outputs/visual_taxis.pdf "../$fig3c"
     cd ..
 fi
 
@@ -126,7 +130,7 @@ if [ ! -f $vid10 ] || [ ! -f $fig3d ]; then
     python odor_taxis.py
     rm odor_taxis.py
     mv outputs/odor_taxis.mp4 "../$vid10"
-    cp outputs/odor_taxis.pdf "../$fig3d"
+    mv outputs/odor_taxis.pdf "../$fig3d"
     cd ..
 fi
 
@@ -135,9 +139,9 @@ if [ ! -f $fig1b ] || [ ! -f $fig3bi ] || [ ! -f $fig3bii ]; then
     jupyter nbconvert --to script env_demo.ipynb
     python env_demo.py
     rm env_demo.py
-    cp outputs/env_overview.png "../$fig1b"
-    cp outputs/vision_sim.pdf "../$fig3bi"
-    cp outputs/behind_fly_view.png "../$fig3bii"
+    mv outputs/env_overview.png "../$fig1b"
+    mv outputs/vision_sim.pdf "../$fig3bi"
+    mv outputs/behind_fly_view.png "../$fig3bii"
     cd ..
 fi
 
@@ -146,18 +150,18 @@ if [ ! -f $fig2b ]; then
     jupyter nbconvert --to script plot_climbing.ipynb
     python plot_climbing.py
     rm plot_climbing.py
-    cp outputs/climbing.pdf "../$fig2b"
+    mv outputs/climbing.pdf "../$fig2b"
     cd ..
 fi
 
-if [ ! -f $fig2c ] || [ ! -f $data2c ]; then
+if [ ! -f $fig2c ] || [ ! -f $data_fig2c ]; then
     cd leg_adhesion
-    # python generate_gainslope_dataset_multiprocessing.py
+    python generate_gainslope_dataset_multiprocessing.py
     jupyter nbconvert --to script critical_angle_plot.ipynb
     python critical_angle_plot.py
     rm critical_angle_plot.py
     cp outputs/critical_slope.pdf "../$fig2c"
-    cp outputs/critical_slope.csv "../$data2c"
+    cp outputs/critical_slope.csv "../$data_fig2c"
     cd ..
 fi
 
@@ -166,11 +170,11 @@ if [ ! -f $fig2d ]; then
     jupyter nbconvert --to script terrain_comparison.ipynb
     python terrain_comparison.py
     rm terrain_comparison.py
-    cp outputs/terrains.pdf "../$fig2d"
+    mv outputs/terrains.pdf "../$fig2d"
     cd ..
 fi
 
-if [ ! -f $edfig6 ]; then
+if [ ! -f $edfig6 ] || [ ! -f $data_edfig6c ] || [ ! -f $data_edfig6d ] || [ ! -f $data_edfig6e ] || [ ! -f $data_edfig6f ]; then
     cd integrated_task
 
     if [ ! -f "data/vision/visual_training_data.pkl" ]; then
@@ -183,7 +187,12 @@ if [ ! -f $edfig6 ]; then
     python train_vision_model.py
     rm train_vision_model.py
 
-    cp outputs/vision_model_stats.pdf "../$edfig6"
+    mv outputs/vision_model_stats.pdf "../$edfig6"
+    mv outputs/direction.csv "../$data_edfig6c"
+    mv outputs/distance.csv "../$data_edfig6d"
+    mv outputs/azimuth.csv "../$data_edfig6e"
+    mv outputs/size.csv "../$data_edfig6f"
+
     cd ..
 fi
 
@@ -201,8 +210,8 @@ if [ ! -f $vid13 ] || [ ! -f $fig5b ] || [ ! -f $fig5c ]; then
     python generate_figures.py
     rm generate_figures.py
 
-    cp outputs/trajectory.pdf "../../$fig5b"
-    cp outputs/trajectories.pdf "../../$fig5c"
+    mv outputs/trajectory.pdf "../../$fig5b"
+    mv outputs/trajectories.pdf "../../$fig5c"
     mv outputs/navigation_task_merged.mp4 "../../$vid13"
     cd ../..
 fi
