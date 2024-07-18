@@ -13,6 +13,7 @@ n_trials = 20
 n_frames = 450
 
 s_ = np.s_[30:]
+s_yx = np.s_[25:]
 video_dir = Path("outputs/videos")
 
 
@@ -32,9 +33,9 @@ empty_img = np.zeros((img_height, img_width, 3), dtype=np.uint8)
 
 
 def init_figure(trial_id):
-    fig, axs = plt.subplots(len(controllers), len(terrains), figsize=(20, 12))
+    fig, axs = plt.subplots(len(controllers), len(terrains), figsize=(19.2, 10.72))
     fig.subplots_adjust(
-        left=0.1, right=0.95, top=0.9, bottom=0.05, hspace=0.03, wspace=0.03
+        left=0.06, right=0.99, top=0.93, bottom=0.045, hspace=0, wspace=0.03
     )
 
     images = np.empty((len(controllers), len(terrains)), object)
@@ -42,7 +43,7 @@ def init_figure(trial_id):
     for i in range(len(controllers)):
         for j in range(len(terrains)):
             ax = axs[i, j]
-            images[i, j] = ax.imshow(empty_img)
+            images[i, j] = ax.imshow(empty_img[s_yx])
 
             for spine in ax.spines.values():
                 spine.set_visible(False)
@@ -51,7 +52,16 @@ def init_figure(trial_id):
             ax.set_yticks([])
 
             if i + j == 0:
-                ax.text(7, 60, f"Trial {trial_id + 1}", fontsize=20, fontname="Arial")
+                ax.text(
+                    -0.21,
+                    1,
+                    f"Trial {trial_id + 1}",
+                    fontsize=26,
+                    fontname="Arial",
+                    va="bottom",
+                    transform=ax.transAxes,
+                    color=(0.4,) * 3,
+                )
 
     controller_label_config = [
         ("CPG\ncontroller", "#4e79a7"),
@@ -72,14 +82,15 @@ def init_figure(trial_id):
     for j, text in enumerate(terrain_labels):
         axs[0, j].set_title(text, size=26, fontname="Arial")
 
-    fig.text(
-        0.8461,
-        0.0220,
+    axs[-1, -1].text(
+        1,
+        -0.02,
         "0.1x speed",
         color="k",
-        transform=fig.transFigure,
+        transform=axs[-1, -1].transAxes,
         fontsize=26,
-        ha="center",
+        ha="right",
+        va="top",
         fontname="Arial",
     )
     return fig, images.ravel()
@@ -104,7 +115,7 @@ def write_trial_video(trial_id, n_frames=450):
                     img = video_reader.get_next_data()[s_]
                 else:
                     img = empty_img
-                image.set_data(img)
+                image.set_data(img[s_yx])
 
             fig.canvas.draw()
             frame = np.array(fig.canvas.buffer_rgba())[..., :3]
