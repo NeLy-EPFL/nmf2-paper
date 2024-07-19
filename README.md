@@ -1,13 +1,17 @@
 # NeuroMechFly v2 Manuscript Repository
 
-This repository contains the scripts to generate the figures and videos for the NeuroMechFly v2 manuscript.
+This repository contains the scripts to generate the figures and videos for the NeuroMechFly v2 paper. It is for archival purposes and will not be maintained.
+
+To use NeuroMechFly, see the [FlyGym repository](https://github.com/NeLy-EPFL/flygym) and visit [neuromechfly.org](https://neuromechfly.org/).
 
 ## Instructions
+Install the [`resubmission-20240501`](https://github.com/NeLy-EPFL/flygym/releases/tag/resubmission-20240501) snapshot of FlyGym.
+
 Clone this repository:
 ```sh
 git clone git@github.com:NeLy-EPFL/nmf2-paper.git
 cd nmf2-paper
-git checkout dev-v1.0.0
+git checkout as-published
 ```
 
 Create the conda environment using the provided `environment.yml` file:
